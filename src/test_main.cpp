@@ -88,6 +88,47 @@ void test_mysetrrt_class(){
 }
 
 
+void test_mysetrrt_class_optimal(){
+    std::cout << "[test optimal planner]\n";
+
+    MySetRRT rrtplanner;
+    rrtplanner.problem_setup();
+    rrtplanner.max_planningtime_setup(1200);
+    rrtplanner.optimization_setup(0.5);
+
+    // start state
+    Eigen::VectorXd x_start(6);
+    // x_start << 0.127680370, 0.0, 0.084952359, 0.0, 1.445775202, 0.0;  // orbit 1
+    // x_start << -0.106189341, 0.0, 0.110648109, 0.0, 0.842527695, 0.0; // orbit 2
+    x_start << 0.0019, 0.0488, 0.0, 0.0, 0.0, 4.7163; // orbit 4
+
+    // goal state
+    double km2m = 1000.0;
+    std::vector<double> goal_accurate = rrtplanner.ode.sphere_to_cartesian(250.0, 0.0, 0.0);
+    std::cout << "x goal pos (X,Y,Z) [meter]: ";
+    rrtplanner.ode.log_vector(goal_accurate);
+    Eigen::VectorXd x_goal(6);
+    x_goal << goal_accurate[0]/km2m/rrtplanner.ode.unit_length, 
+              goal_accurate[1]/km2m/rrtplanner.ode.unit_length,
+              goal_accurate[2]/km2m/rrtplanner.ode.unit_length,
+              0.0, 0.0, 0.0;
+
+    rrtplanner.plan(x_start, x_goal);
+
+    if(rrtplanner.node_path.size() > 0){
+        // std::string solutionfile = "/Users/chko1829/src/SolarSailLanding/file_dump/MySetRRT/orbit4_mysetRRT_solution.csv";
+        std::string solutionfile = "outputs/orbit4_mysetRRT_solution.csv";
+        // write solution and use it to simulate trajectory
+        rrtplanner.write_solution_data(solutionfile);
+        std::vector<Eigen::VectorXd> trajectory = rrtplanner.construct_trajectory(solutionfile);
+        
+        // std::string filename = "/Users/chko1829/src/SolarSailLanding/file_dump/MySetRRT/orbit4_mysetRRT_traj.csv";
+        std::string filename = "outputs/orbit4_mysetRRT_traj.csv";
+        rrtplanner.ode.write_traj_csv(trajectory, filename);
+    }
+}
+
+
 void BenchMark_mysetrrt_class(){
     // Number of Trials
     int N_trials = 100;
@@ -353,7 +394,9 @@ int main() {
 
     // test_graph_class();
 
-    test_mysetrrt_class();
+    // test_mysetrrt_class();
+
+    test_mysetrrt_class_optimal();
 
     // test_mysetrrt_construct_traj();
 

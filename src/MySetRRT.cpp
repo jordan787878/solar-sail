@@ -21,6 +21,9 @@ void MySetRRT::problem_setup(){
     // default max planning time (sec)
     max_planningtime = 20;
 
+    // default cost threshold
+    cost_threshold = -1.0;
+
     timeOfFlight = 0.0;
 
     // clean data structure
@@ -37,6 +40,11 @@ void MySetRRT::keepouts_setup(std::vector<KEEPOUT::Keepout> kps){
 
 void MySetRRT::max_planningtime_setup(const int time){
     max_planningtime = time;
+}
+
+void MySetRRT::optimization_setup(const double threshold){
+    cost_threshold = threshold;
+    std::cout << "optimization threshold setup: " << cost_threshold << "\n";
 }
 
 void MySetRRT::plan(const Eigen::VectorXd xi, const Eigen::VectorXd xf){
@@ -93,6 +101,7 @@ void MySetRRT::plan(const Eigen::VectorXd xi, const Eigen::VectorXd xf){
 
             trace_path(node_count-1);
             timeOfFlight = trace_timeOfFlight(node_count-1);
+            std::cout << "Time of Flight: " << timeOfFlight << "\n";
             break;
         }
         if(tree.size() >= max_nodes){
@@ -274,31 +283,29 @@ void MySetRRT::connect_node(Eigen::VectorXd* state_sample_ptr, const int node,
                             int& node_count, const std::vector<double>& U_sample){
     if(state_sample_ptr){
         Eigen::VectorXd x0 = node_to_coord[node];
-        Eigen::VectorXd x_new = (*state_sample_ptr);
-        // std::cout << "[DEBUG] Valid state sample: ";
-        // log_vector(x_new);
+
+        // optimization process
+        if(cost_threshold > 0){
+            // if the select node has cost greater than threshold, no connection occurs
+            double cost = trace_timeOfFlight(node); //std::cout << "node " << node << " cost: " << cost << "\n";
+            if(cost > cost_threshold){
+                // std::cout << "node " << node << " exceeds " << cost_threshold << "; cost: " << cost << "\n"; 
+                return;
+            }
+        }
+
+        // do connection
+        Eigen::VectorXd x_new = (*state_sample_ptr); 
+        // std::cout << "[DEBUG] Valid state sample: "; // log_vector(x_new);
         tree.push_back(node_count);
         node_to_coord[node_count] = x_new; // std::cout << "push node: " << node_count << " to tree\n";
         graph.connect(node_count, node);
 
         std::pair<int, int> edge(node, node_count);
         edge_to_control[edge] = U_sample;
-        // std::cout << node << "->" << node_count << ": " 
-        // << U_sample[0] << " " << U_sample[1] << " " << U_sample[2] << "\n";
-        // std::cout << "    ";
-        // log_vector(x0);
-        // std::cout << " -> ";
-        // log_vector(x_new);
-        // std::cout << "\n";
-
-        // write the data
-        // Eigen::VectorXd node_pair(12);
-        // node_pair << x0[0] , x0[1] , x0[2] , x0[3] , x0[4] , x0[5],
-        //                 x_new[0] , x_new[1] , x_new[2], x_new[3] , x_new[4] , x_new[5];
-
-        // // [TEMP] When connection occurs, store the data
-        // graph_plot.push_back(node_pair);
-
+        // std::cout << node << "->" << node_count << ": " // << U_sample[0] << " " << U_sample[1] << " " << U_sample[2] << "\n";
+        // std::cout << "    "; // log_vector(x0);
+        // std::cout << " -> "; // log_vector(x_new); // std::cout << "\n";
         node_count = node_count + 1;
     }
 }

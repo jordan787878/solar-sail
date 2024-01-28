@@ -33,10 +33,12 @@ class MySetRRT{
         std::map<std::pair<int, int>, std::vector<double>> edge_to_control;
         std::vector<KEEPOUT::Keepout> keepouts;
         double max_planningtime;
+        double cost_threshold;
 
         void problem_setup();
         void keepouts_setup(std::vector<KEEPOUT::Keepout> kps);
         void max_planningtime_setup(const int time);
+        void optimization_setup(const double threshold);
         void plan(const Eigen::VectorXd xi, const Eigen::VectorXd xf);
         void write_solution_data(const std::string filename);
         void write_keepouts_data(const std::string filename);
