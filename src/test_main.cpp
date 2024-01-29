@@ -88,13 +88,13 @@ void test_mysetrrt_class(){
 }
 
 
-void test_mysetrrt_class_optimal(){
+void test_mysetrrt_class_optimal_standard(){
     std::cout << "[test optimal planner]\n";
 
     MySetRRT rrtplanner;
     rrtplanner.problem_setup();
     rrtplanner.max_planningtime_setup(1200);
-    rrtplanner.optimization_setup(0.5);
+    rrtplanner.optimization_setup(0.4);
 
     // start state
     Eigen::VectorXd x_start(6);
@@ -115,7 +115,7 @@ void test_mysetrrt_class_optimal(){
 
     rrtplanner.plan(x_start, x_goal);
 
-    if(rrtplanner.node_path.size() > 0){
+    if(rrtplanner.planSuccess){
         // std::string solutionfile = "/Users/chko1829/src/SolarSailLanding/file_dump/MySetRRT/orbit4_mysetRRT_solution.csv";
         std::string solutionfile = "outputs/orbit4_mysetRRT_solution.csv";
         // write solution and use it to simulate trajectory
@@ -125,6 +125,75 @@ void test_mysetrrt_class_optimal(){
         // std::string filename = "/Users/chko1829/src/SolarSailLanding/file_dump/MySetRRT/orbit4_mysetRRT_traj.csv";
         std::string filename = "outputs/orbit4_mysetRRT_traj.csv";
         rrtplanner.ode.write_traj_csv(trajectory, filename);
+    }
+}
+
+
+void test_mysetrrt_class_optimal_asymptoptic(){
+    std::cout << "[test optimal planner asymptoptic]\n";
+
+    MySetRRT rrtplanner;
+
+    // start state
+    Eigen::VectorXd x_start(6);
+    // x_start << 0.127680370, 0.0, 0.084952359, 0.0, 1.445775202, 0.0;  // orbit 1
+    // x_start << -0.106189341, 0.0, 0.110648109, 0.0, 0.842527695, 0.0; // orbit 2
+    x_start << 0.0019, 0.0488, 0.0, 0.0, 0.0, 4.7163; // orbit 4
+
+    // goal state
+    Eigen::VectorXd x_goal(6);
+    x_goal << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+
+    // Asymptoptically Optimization
+    bool breakplan = false;
+    double time_threshold = 2.0;
+    double time_incremental = 0.1;
+    int plan_time = 200;
+    int max_plan_time = 1800;
+    auto startTime = std::chrono::high_resolution_clock::now();
+
+    // init adaptive planning time, best time of flight
+    int adapt_plan_time = plan_time;
+    double best_timeOfFlight = std::numeric_limits<double>::infinity();
+
+    while(true){
+        // check Total Time
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        auto elapsedTime = std::chrono::duration_cast<std::chrono::seconds>(currentTime - startTime);
+        double elapsedSeconds = elapsedTime.count(); std::cout << "Total Plan Time: " << elapsedSeconds << "\n";
+        if(elapsedSeconds >= max_plan_time){
+            breakplan = true;
+            std::cout << "Exceeds Total Plan Time\n";
+            return;
+        }
+
+        // planning
+        rrtplanner.problem_setup();
+        rrtplanner.max_planningtime_setup(adapt_plan_time);
+        rrtplanner.optimization_setup(time_threshold);
+        rrtplanner.plan(x_start, x_goal);
+
+        // solved
+        if(rrtplanner.planSuccess){
+            std::string solutionfile = "outputs/orbit4_mysetRRT_solution.csv";
+            rrtplanner.write_solution_data(solutionfile);
+            std::vector<Eigen::VectorXd> trajectory = rrtplanner.construct_trajectory(solutionfile);
+            std::string filename = "outputs/orbit4_mysetRRT_traj.csv";
+            rrtplanner.ode.write_traj_csv(trajectory, filename);
+            
+            best_timeOfFlight = rrtplanner.timeOfFlight;
+            std::cout << "Solution improves. Best Solution: " << best_timeOfFlight << "\n";
+            // incrementally update the time threshold
+            time_threshold = best_timeOfFlight;
+
+            // TODO: the next rrtplanner can "inherit" the tree of the success planner
+        } 
+        // un-solved
+        else{
+            std::cout << "no solution\n";
+            // adapt the planning time
+            adapt_plan_time = adapt_plan_time * 2;
+        }
     }
 }
 
@@ -396,7 +465,9 @@ int main() {
 
     // test_mysetrrt_class();
 
-    test_mysetrrt_class_optimal();
+    // test_mysetrrt_class_optimal_standard();
+
+    test_mysetrrt_class_optimal_asymptoptic();
 
     // test_mysetrrt_construct_traj();
 

@@ -26,6 +26,7 @@ class MySetRRT{
         int max_nodes;
         std::vector<int> node_path;
         double timeOfFlight;
+        bool planSuccess;
 
         std::vector<int> tree;
         Graph graph;
