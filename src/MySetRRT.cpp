@@ -21,7 +21,12 @@ void MySetRRT::problem_setup(){
     // default max planning time (sec)
     max_planningtime = 20;
 
+    // default cost threshold
+    cost_threshold = -1.0;
+
     timeOfFlight = 0.0;
+
+    planSuccess = false;
 
     // clean data structure
     tree.clear();
@@ -29,6 +34,7 @@ void MySetRRT::problem_setup(){
     node_to_coord.clear();
     edge_to_control.clear();
     keepouts.clear();
+    node_path.clear();
 }
 
 void MySetRRT::keepouts_setup(std::vector<KEEPOUT::Keepout> kps){
@@ -37,6 +43,12 @@ void MySetRRT::keepouts_setup(std::vector<KEEPOUT::Keepout> kps){
 
 void MySetRRT::max_planningtime_setup(const int time){
     max_planningtime = time;
+    std::cout << "planning time setup: " << max_planningtime << "\n";
+}
+
+void MySetRRT::optimization_setup(const double threshold){
+    cost_threshold = threshold;
+    std::cout << "optimization threshold setup: " << cost_threshold << "\n";
 }
 
 void MySetRRT::plan(const Eigen::VectorXd xi, const Eigen::VectorXd xf){
@@ -79,10 +91,13 @@ void MySetRRT::plan(const Eigen::VectorXd xi, const Eigen::VectorXd xf){
             // // success
             // std::cout << "isGoal: True\n";
 
-            // // debug last node
-            // Eigen::VectorXd x_new = (*q_new_ptr);
-            // std::cout << "goal state: ";
-            // ode.log_vector(x_new);
+            // debug last node
+            Eigen::VectorXd x_from_nodecount = node_to_coord[node_count-1];
+            std::cout << "goal state from node_count: ";
+            ode.log_vector(x_from_nodecount);
+            Eigen::VectorXd x_from_ptr = (*q_new_ptr);
+            std::cout << "goal state from ptr: ";
+            ode.log_vector(x_from_ptr);
 
             // std::vector<double> x_goal_debug; 
             // x_goal_debug.push_back(x_new[0]*ode.unit_length*1000.0);
@@ -92,7 +107,9 @@ void MySetRRT::plan(const Eigen::VectorXd xi, const Eigen::VectorXd xf){
             // ode.log_vector(x_goal_debug);
 
             trace_path(node_count-1);
+            planSuccess = true;
             timeOfFlight = trace_timeOfFlight(node_count-1);
+            std::cout << "Time of Flight: " << timeOfFlight << "\n";
             break;
         }
         if(tree.size() >= max_nodes){
@@ -180,7 +197,6 @@ std::vector< Eigen::VectorXd > MySetRRT::construct_trajectory(const std::string 
 
 int MySetRRT::select_node(){
     int node = getRandomInteger(tree.size()); //std::cout << "MySetRRT.select_node() " << node << "\n";
-
     return node;
 }
 
@@ -202,6 +218,13 @@ Eigen::VectorXd* MySetRRT::get_q_sample_ptr(const Eigen::VectorXd& x0,
     const double u1 = U_sample[0];
     const double u2 = U_sample[1];
     const double t_end = U_sample[2];
+
+    // optimization
+    if(cost_threshold > 0 && (trace_timeOfFlight(node) + t_end) >= cost_threshold){
+        return nullptr;
+    }
+
+
     std::vector<double> u_control; u_control.push_back(u1); u_control.push_back(u2); //std::cout << "get u_control\n";
     std::vector<Eigen::VectorXd> x_traj; //std::cout << "init x_traj\n"; std::cout << "x0 for ode"; ode.log_vector(x0);
     x_traj = ode.rungeKutta(0.0, x0, u_control, tstep_Traj, t_end); //std::cout << "simulate x_traj\n";
@@ -274,31 +297,17 @@ void MySetRRT::connect_node(Eigen::VectorXd* state_sample_ptr, const int node,
                             int& node_count, const std::vector<double>& U_sample){
     if(state_sample_ptr){
         Eigen::VectorXd x0 = node_to_coord[node];
-        Eigen::VectorXd x_new = (*state_sample_ptr);
-        // std::cout << "[DEBUG] Valid state sample: ";
-        // log_vector(x_new);
+        Eigen::VectorXd x_new = (*state_sample_ptr); 
+        // std::cout << "[DEBUG] Valid state sample: "; // log_vector(x_new);
         tree.push_back(node_count);
         node_to_coord[node_count] = x_new; // std::cout << "push node: " << node_count << " to tree\n";
         graph.connect(node_count, node);
 
         std::pair<int, int> edge(node, node_count);
         edge_to_control[edge] = U_sample;
-        // std::cout << node << "->" << node_count << ": " 
-        // << U_sample[0] << " " << U_sample[1] << " " << U_sample[2] << "\n";
-        // std::cout << "    ";
-        // log_vector(x0);
-        // std::cout << " -> ";
-        // log_vector(x_new);
-        // std::cout << "\n";
-
-        // write the data
-        // Eigen::VectorXd node_pair(12);
-        // node_pair << x0[0] , x0[1] , x0[2] , x0[3] , x0[4] , x0[5],
-        //                 x_new[0] , x_new[1] , x_new[2], x_new[3] , x_new[4] , x_new[5];
-
-        // // [TEMP] When connection occurs, store the data
-        // graph_plot.push_back(node_pair);
-
+        // std::cout << node << "->" << node_count << ": " // << U_sample[0] << " " << U_sample[1] << " " << U_sample[2] << "\n";
+        // std::cout << "    "; // log_vector(x0);
+        // std::cout << " -> "; // log_vector(x_new); // std::cout << "\n";
         node_count = node_count + 1;
     }
 }
@@ -434,6 +443,9 @@ double MySetRRT::trace_timeOfFlight(const int node_goal){
     // init
     double result = 0;
     int n = node_goal;
+    if(n == 0){
+        return result;
+    }
 
     while(true){
         // std::cout << n << " ";
