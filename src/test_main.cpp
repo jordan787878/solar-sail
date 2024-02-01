@@ -1,13 +1,79 @@
-// src/main.cpp
 #include <iostream>
 #include <chrono>
 #include "myownlibrary.h"
+#include "OdeVirtual.h"
+#include "OdeSolarsail.h"
+#include "OdeSolver.h"
+#include "SetRRT.h"
+
 #include "MyODE.h"
 #include "Graph.h"
 #include "MySetRRT.h"
 #include "MyResult.h"
 #include "helperfunctions.h"
 // #include "Keepout.h"
+
+void test_GeneralODE(){
+    std::cout << "[test GeneralODE class]\n";
+
+    OdeSolarsail ode_solarsail;
+    ode_solarsail.set_params(2.0, 0.0, 0.0, 4.2118e-11, 6.51688e+06, 108.4094);
+    Eigen::VectorXd x_min(6); x_min << -1, -1, -1, -50, -50, -50;
+    Eigen::VectorXd x_max(6); x_max << 1, 1, 1, 50, 50, 50;
+    ode_solarsail.set_domain(x_min, x_max, x_min, x_max);
+    ode_solarsail.set_r_ast(0.25);
+    std::cout << ode_solarsail.unit_vel << " " << ode_solarsail.unit_acc << "\n";
+
+    Eigen::VectorXd x_start(6);
+    x_start << -0.1062, 0, 0.1106, 0, 0.8425, 0;
+    Eigen::VectorXd u(2);
+    u << 0, 0;
+
+    OdeVirtual* ode_pointer = &ode_solarsail;
+    Eigen::VectorXd dxdt(6);
+    dxdt = ode_pointer->get_dxdt(0, x_start, u); 
+    HELPER::log_vector(dxdt);
+
+    OdeSolver ode_solver;
+    ode_solver.link_ode_pointer(ode_pointer);
+    dxdt = ode_solver.ode_pointer->get_dxdt(0, x_start, u);
+    HELPER::log_vector(dxdt);
+
+    std::vector<Eigen::VectorXd> x_traj = ode_solver.solver_runge_kutta(x_start, u, 1e-4, 0.5);
+    HELPER::log_trajectory(x_traj);
+    HELPER::write_traj_to_csv(x_traj, "outputs/general_traj.csv");
+
+    std::cout << "\n";
+}
+
+void test_setrrt(){
+    // Define ode
+    OdeSolarsail ode_solarsail;
+    ode_solarsail.set_params(2.0, 0.0, 0.0, 4.2118e-11, 6.51688e+06, 108.4094);
+    Eigen::VectorXd x_min(6); x_min << -1, -1, -1, -50, -50, -50;
+    Eigen::VectorXd x_max(6); x_max << 1, 1, 1, 50, 50, 50;
+    ode_solarsail.set_domain(x_min, x_max, x_min, x_max);
+    ode_solarsail.set_r_ast(0.25);
+    OdeVirtual* ode_pointer = &ode_solarsail;
+
+    // Define ode solver
+    OdeSolver ode_solver;
+    ode_solver.link_ode_pointer(ode_pointer);
+
+    // Define planner
+    SetRRT setrrt_planner;
+    setrrt_planner.link_ode_solver_pointer(&ode_solver);
+
+    // test ode_solver works in planner
+    Eigen::VectorXd x_start(6);
+    x_start << -0.1062, 0, 0.1106, 0, 0.8425, 0;
+    Eigen::VectorXd u(2);
+    u << 0, 0;
+    std::vector<Eigen::VectorXd> x_traj = setrrt_planner.ode_solver_pointer->solver_runge_kutta(x_start, u, 1e-4, 0.5);
+    HELPER::log_trajectory(x_traj);
+    HELPER::write_traj_to_csv(x_traj, "outputs/general_traj.csv");
+}
+
 
 void test_ode_class(){
     MyODE ode;
@@ -463,6 +529,10 @@ void test_mysetrrt_class_withnoise(){
 
 
 int main() {
+
+    // test_GeneralODE();
+
+    test_setrrt();
     
     // test_ode_class();
 
@@ -472,7 +542,7 @@ int main() {
 
     // test_mysetrrt_class_optimal_standard();
 
-    test_mysetrrt_class_optimal_asymptoptic();
+    // test_mysetrrt_class_optimal_asymptoptic();
 
     // test_mysetrrt_construct_traj();
 
