@@ -1,7 +1,7 @@
 #include "OdeSolarsail.h"
 
 
-Eigen::VectorXd OdeSolarsail::get_dxdt(const double &t, const Eigen::VectorXd &x, const Eigen::VectorXd &u){
+Eigen::VectorXd OdeSolarsail::get_dxdt(const double &t, const Eigen::VectorXd &x, const Eigen::VectorXd &u, bool is_process_noise){
     double r1 = x[0]; double r2 = x[1]; double r3 = x[2];
     double v1 = x[3]; double v2 = x[4]; double v3 = x[5];
 
@@ -16,11 +16,6 @@ Eigen::VectorXd OdeSolarsail::get_dxdt(const double &t, const Eigen::VectorXd &x
     double ay = a_SRP[1]/unit_acc;
     double az = a_SRP[2]/unit_acc; //std::cout << "a_SRP: " << ax << " " << ay << " " << az <<  "\n";
 
-    // additive white guassian noise
-    // Eigen::VectorXd w_vector = generate_process_noise(3);
-    // // log_vector(w_vector);
-    // ax = ax + w_vector[0]; ay = ay + w_vector[0]; az = az + w_vector[0];
-
     const int size = x.size();
     Eigen::VectorXd dxdt(size);
     dxdt[0] = v1;
@@ -29,6 +24,14 @@ Eigen::VectorXd OdeSolarsail::get_dxdt(const double &t, const Eigen::VectorXd &x
     dxdt[3] =  2*v2 + 3*r1 - r1/pow(r,3) + ax;
     dxdt[4] = -2*v1 - r2/pow(r,3) + ay;
     dxdt[5] = -r3 - r3/pow(r,3) + az;
+
+    if(is_process_noise){
+        Eigen::VectorXd process_noise = generateRandomVector(process_mean, process_covariance);
+        for(int i=0; i<process_noise.size(); i++){
+            dxdt[i+3] = dxdt[i+3] + process_noise[i]; std::cout << process_noise[i] << " ";
+        } std::cout << "\n";
+    }
+
     return dxdt;
 }
 
@@ -80,4 +83,10 @@ void OdeSolarsail::set_domain(const Eigen::VectorXd x_min_values, const Eigen::V
 
 void OdeSolarsail::set_r_ast(const double value){
     r_ast = value;
+}
+
+
+void OdeSolarsail::set_process_noise(const Eigen::VectorXd mean, const Eigen::MatrixXd cov){
+    process_mean = mean;
+    process_covariance = cov;
 }

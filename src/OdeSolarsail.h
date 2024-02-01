@@ -19,7 +19,7 @@ public:
 
     OdeSolarsail(std::string name) : OdeVirtual(name){}
 
-    Eigen::VectorXd get_dxdt(const double &t, const Eigen::VectorXd &x, const Eigen::VectorXd &u) override;
+    Eigen::VectorXd get_dxdt(const double &t, const Eigen::VectorXd &x, const Eigen::VectorXd &u, bool is_process_noise = false) override;
 
     bool is_out_of_domain(const Eigen::VectorXd& s) override;
 
@@ -31,4 +31,6 @@ public:
                     const Eigen::VectorXd u_min_values, const Eigen::VectorXd u_max_values);
 
     void set_r_ast(const double);
+
+    void set_process_noise(const Eigen::VectorXd mean, const Eigen::MatrixXd cov);
 };

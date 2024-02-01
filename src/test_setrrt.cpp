@@ -21,6 +21,11 @@ void test(){
     Eigen::VectorXd u_max(3); u_max << 0.5*M_PI, 2*M_PI, 0.05;
     ode_solarsail.set_domain(x_min, x_max, u_min, u_max);
     ode_solarsail.set_r_ast(0.25);
+    Eigen::VectorXd process_mean(3); process_mean << 0.0, 0.0, 0.0;
+    Eigen::MatrixXd process_cov(3,3); process_cov << 100.0, 0.0, 0.0,
+                                                     0.0, 100.0, 0.0,
+                                                     0.0, 0.0, 100.0;
+    ode_solarsail.set_process_noise(process_mean, process_cov);
     OdeVirtual* ode_pointer = &ode_solarsail;
 
     // Define ode solver
@@ -53,10 +58,15 @@ void test(){
     std::string sol_file = "outputs/" + planner_pointer->planner_name + "_" + ode_pointer->ode_name + "_env" + std::to_string(env) + "_sol.csv";
     HELPER::write_traj_to_csv(sol, sol_file);
 
-    std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol);
-    // HELPER::log_trajectory(traj);
+    // Construct Controlled Trajectory
+    std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol); // HELPER::log_trajectory(traj);
     std::string traj_file = "outputs/" + planner_pointer->planner_name + "_" + ode_pointer->ode_name + "_env" + std::to_string(env) + "_traj.csv";
     HELPER::write_traj_to_csv(traj, traj_file);
+
+    // Construct Controlled Trajectory subject to Process noise
+    std::vector<Eigen::VectorXd> traj_noise = planner_pointer->construct_trajectory(sol, true);
+    std::string traj_noise_file = "outputs/" + planner_pointer->planner_name + "_" + ode_pointer->ode_name + "_env" + std::to_string(env) + "_trajnoise.csv";
+    HELPER::write_traj_to_csv(traj_noise, traj_noise_file);
 }
 
 

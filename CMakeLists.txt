@@ -35,6 +35,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Create the executable from source files
 add_executable(test_setrrt 
 	src/test_setrrt.cpp
+	src/OdeVirtual.cpp
 	src/OdeSolver.cpp
 	src/OdeSolarsail.cpp
 	src/PlannerVirtual.cpp

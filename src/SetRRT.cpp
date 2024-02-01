@@ -34,7 +34,7 @@ std::vector<Eigen::VectorXd> SetRRT::plan(const Eigen::VectorXd& x_init, const s
 }
 
 
-std::vector<Eigen::VectorXd> SetRRT::construct_trajectory(const std::vector<Eigen::VectorXd>& solution){
+std::vector<Eigen::VectorXd> SetRRT::construct_trajectory(const std::vector<Eigen::VectorXd>& solution, bool is_process_noise){
 
     std::vector<Eigen::VectorXd> trajectory;
     Eigen::VectorXd row0 = solution[0];
@@ -49,7 +49,7 @@ std::vector<Eigen::VectorXd> SetRRT::construct_trajectory(const std::vector<Eige
             Eigen::VectorXd u = control.head(size_u-1);
             double time_of_control = control[size_u-1];
             std::vector<Eigen::VectorXd> traj_segment;
-            traj_segment =  ode_solver_pointer->solver_runge_kutta(x, u, ode_solver_pointer->time_integration, time_of_control);
+            traj_segment =  ode_solver_pointer->solver_runge_kutta(x, u, ode_solver_pointer->time_integration, time_of_control, {}, is_process_noise);
             trajectory.insert(trajectory.end(), traj_segment.begin(), traj_segment.end());
             x = trajectory.back();
         }
