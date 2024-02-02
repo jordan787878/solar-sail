@@ -33,10 +33,23 @@ Four different initial orbits and environments are included. The blue line is th
   </tr>
 </table>
 
-4. Example Animation
+4. Animation
 
 https://github.com/jordan787878/solar-sail/assets/17584164/d9b81a1a-f746-4272-95a6-6b58f85204bf
 
+
+# Generalize to other Problem
+The framework can be applied to other problems, provided their ODEs.
+## Marine Vessel Navigation
+A marine vessel controlled by forward velocity (u1) and yaw rate (u3). The mission is to reach the green goal and avoid the red unsafe regions.
+<table>
+  <tr>
+   <td><img src="images/marine_vessel_2_traj.png" alt="Image 1" style="width: 400px; height: 300px;"></td>
+    <td><img src="images/marine_vessel_2_control.png" alt="Image 2" style="width: 400px; height: 300px;"></td>
+  </tr>
+</table>
+
+Animation
 
 
 
