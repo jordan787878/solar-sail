@@ -42,6 +42,12 @@ add_executable(test_setrrt
 	src/Graph.cpp
 	src/SetRRT.cpp
 )
+add_executable(test_simpleode
+	src/test_simpleode.cpp
+	src/OdeVirtual.cpp
+	src/OdeSolver.cpp
+	src/OdeSimpleExample.cpp
+)
 
 
 # Link the Eigen3 library
@@ -49,3 +55,4 @@ add_executable(test_setrrt
 
 # Link the Eigen3 library
 target_link_libraries(test_setrrt Eigen3::Eigen)
+target_link_libraries(test_simpleode Eigen3::Eigen)
