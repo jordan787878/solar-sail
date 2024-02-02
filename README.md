@@ -51,6 +51,10 @@ A marine vessel controlled by forward velocity (u1) and yaw rate (u3). The missi
 
 Animation
 
+https://github.com/jordan787878/solar-sail/assets/17584164/b0716dbc-bea3-4bb8-bcaa-bb576a97cb03
+
+
+
 
 
 # C++
