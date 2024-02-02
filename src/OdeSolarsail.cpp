@@ -26,10 +26,11 @@ Eigen::VectorXd OdeSolarsail::get_dxdt(const double &t, const Eigen::VectorXd &x
     dxdt[5] = -r3 - r3/pow(r,3) + az;
 
     if(is_process_noise){
+        // std::cout << "use process noise\n";
         Eigen::VectorXd process_noise = generateRandomVector(process_mean, process_covariance);
         for(int i=0; i<process_noise.size(); i++){
-            dxdt[i+3] = dxdt[i+3] + process_noise[i]; std::cout << process_noise[i] << " ";
-        } std::cout << "\n";
+            dxdt[i+3] = dxdt[i+3] + process_noise[i]; // std::cout << process_noise[i] << " ";
+        } // std::cout << "\n";
     }
 
     return dxdt;
@@ -47,11 +48,31 @@ bool OdeSolarsail::is_out_of_domain(const Eigen::VectorXd& s){
 }
 
 
+bool OdeSolarsail::is_in_unsafe(const Eigen::VectorXd& s){
+    double safe_buffer = 0.2; // [km]
+    if(unsafe_circle_regions.radius.empty()){
+        return false;
+    }
+    else{
+        for(int i=0; i<unsafe_circle_regions.radius.size(); i++){
+            Eigen::VectorXd cent = unsafe_circle_regions.center[i].head(3); // [km]
+            double dist_to_cent = (unit_length*(s.head(3)) - cent).norm();
+            // std::cout << dist_to_cent << " " << unsafe_circle_regions.radius[i] + safe_buffer << "\n";
+            if(dist_to_cent <= unsafe_circle_regions.radius[i] + safe_buffer){
+                std::cout << "[DEBUG] is in unsafe\n";
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+
 bool OdeSolarsail::is_goals(const Eigen::VectorXd& s, const std::vector<Eigen::VectorXd> goals){
     for(const auto& goal : goals){
         Eigen::VectorXd delta_pos = s.head(3) - goal.head(3);
         double distance = unit_length * delta_pos.norm();
-        if(distance < r_ast * 4){ std::cout << "distance: " << distance << "\n"; }
+        if(distance < r_ast * 2){ std::cout << "distance: " << distance << "\n"; }
         if(distance <= r_ast){
             return true;
         }
@@ -81,6 +102,15 @@ void OdeSolarsail::set_domain(const Eigen::VectorXd x_min_values, const Eigen::V
 }
 
 
+void OdeSolarsail::set_unsafecircles(const double dimension, 
+                                     const std::vector<Eigen::VectorXd> center, 
+                                     const std::vector<double> radius){
+    unsafe_circle_regions.dimension = dimension;
+    unsafe_circle_regions.center = center;
+    unsafe_circle_regions.radius = radius;
+}
+
+
 void OdeSolarsail::set_r_ast(const double value){
     r_ast = value;
 }
@@ -89,4 +119,21 @@ void OdeSolarsail::set_r_ast(const double value){
 void OdeSolarsail::set_process_noise(const Eigen::VectorXd mean, const Eigen::MatrixXd cov){
     process_mean = mean;
     process_covariance = cov;
+}
+
+
+std::vector<Eigen::VectorXd> OdeSolarsail::output_unsafecircles(){
+    std::vector<Eigen::VectorXd> data;
+    if(!unsafe_circle_regions.radius.empty()){
+        for(int i=0; i<unsafe_circle_regions.radius.size(); i++){
+            Eigen::VectorXd row(4);
+            row << unsafe_circle_regions.radius[i], 
+                   unsafe_circle_regions.center[i][0], 
+                   unsafe_circle_regions.center[i][1], 
+                   unsafe_circle_regions.center[i][2], 
+            data.push_back(row);
+        }
+        return data;
+    }
+    return data;
 }

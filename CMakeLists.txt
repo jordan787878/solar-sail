@@ -41,7 +41,6 @@ add_executable(test_setrrt
 	src/PlannerVirtual.cpp
 	src/Graph.cpp
 	src/SetRRT.cpp
-
 )
 
 

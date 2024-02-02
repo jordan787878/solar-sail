@@ -22,7 +22,8 @@ class OdeSolver{
                                         const double t_integration,
 										double& t_end,
                                         const std::vector<Eigen::VectorXd>& x_goals = {},
-										bool is_process_noise = false);
+										bool is_process_noise = false,
+										bool check_unsafe = true);
 		
         // void validate(const Eigen::VectorXd x0, const std::string ufilename, const std::string filename);
 		// void write_traj_csv(const std::vector<Eigen::VectorXd>& data, const std::string filename);

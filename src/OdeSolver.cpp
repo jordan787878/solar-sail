@@ -11,7 +11,8 @@ std::vector<Eigen::VectorXd> OdeSolver::solver_runge_kutta(
                                         const double t_integration,
 										double& t_end,
                                         const std::vector<Eigen::VectorXd>& x_goals,
-                                        bool is_process_noise){
+                                        bool is_process_noise,
+                                        bool check_unsafe){
 
     std::vector<Eigen::VectorXd> x_traj;
     const int size_x = x0.size();
@@ -24,6 +25,10 @@ std::vector<Eigen::VectorXd> OdeSolver::solver_runge_kutta(
 
     while (t < t_end) {
         if(ode_pointer->is_out_of_domain(x)){
+            x_traj.clear();
+            return x_traj;
+        }
+        if(check_unsafe && ode_pointer->is_in_unsafe(x)){
             x_traj.clear();
             return x_traj;
         }

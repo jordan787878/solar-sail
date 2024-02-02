@@ -19,6 +19,7 @@ class OdeVirtual{
 		OdeVirtual(std::string name){ode_name = name;}
 		virtual Eigen::VectorXd get_dxdt(const double &t, const Eigen::VectorXd &x, const Eigen::VectorXd &u, bool is_process_noise = false) = 0;
 		virtual bool is_out_of_domain(const Eigen::VectorXd& s) = 0;
+		virtual bool is_in_unsafe(const Eigen::VectorXd& s) = 0;
 		virtual bool is_goals(const Eigen::VectorXd& s, const std::vector<Eigen::VectorXd> goals) = 0;
 
 	protected:

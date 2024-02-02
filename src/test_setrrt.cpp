@@ -18,15 +18,19 @@ void test(){
     Eigen::VectorXd x_min(6); x_min << -1, -1, -1, -50, -50, -50;
     Eigen::VectorXd x_max(6); x_max << 1, 1, 1, 50, 50, 50;
     Eigen::VectorXd u_min(3); u_min << -0.5*M_PI, 0.0, 0.001;
-    Eigen::VectorXd u_max(3); u_max << 0.5*M_PI, 2*M_PI, 0.05;
+    Eigen::VectorXd u_max(3); u_max << 0.5*M_PI, 2*M_PI, 0.1;
     ode_solarsail.set_domain(x_min, x_max, u_min, u_max);
+    ode_solarsail.set_unsafecircles(3, CONFIG_SOLARSAIL::get_random_unsafe_centers_km(3, -5.0, 5.0), 
+                                        CONFIG_SOLARSAIL::get_random_unsafe_raidus_km(3, 0.5, 1.5));
     ode_solarsail.set_r_ast(0.25);
-    Eigen::VectorXd process_mean(3); process_mean << 0.0, 0.0, 0.0;
-    Eigen::MatrixXd process_cov(3,3); process_cov << 100.0, 0.0, 0.0,
-                                                     0.0, 100.0, 0.0,
-                                                     0.0, 0.0, 100.0;
+    Eigen::VectorXd process_mean(3); process_mean << CONFIG_SOLARSAIL::get_process_mean();
+    Eigen::MatrixXd process_cov(3,3); process_cov << CONFIG_SOLARSAIL::get_process_cov();
     ode_solarsail.set_process_noise(process_mean, process_cov);
     OdeVirtual* ode_pointer = &ode_solarsail;
+
+    // Construct Unsafe for Visualization
+    std::string unsafe_file = "outputs/" + ode_pointer->ode_name + "_env" + std::to_string(env) + "_unsafe.csv";
+    HELPER::write_traj_to_csv(ode_solarsail.output_unsafecircles(), unsafe_file);
 
     // Define ode solver
     OdeSolver ode_solver(1e-4);
@@ -45,7 +49,7 @@ void test(){
                                                 x_start, 
                                                 Eigen::VectorXd::Zero(2), 
                                                 planner_pointer->ode_solver_pointer->time_integration, 
-                                                time_nominal);
+                                                time_nominal, {}, false, false);
     std::string nom_traj_file = "outputs/" + ode_pointer->ode_name + "_env" + std::to_string(env) + "_traj.csv";
     HELPER::write_traj_to_csv(nom_traj, nom_traj_file);
 
