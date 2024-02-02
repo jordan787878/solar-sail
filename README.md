@@ -33,9 +33,12 @@ Four different initial orbits and environments are included. The blue line is th
   </tr>
 </table>
 
-4. Example Animation 
+4. Example Animation
 
 https://github.com/jordan787878/solar-sail/assets/17584164/d9b81a1a-f746-4272-95a6-6b58f85204bf
+
+
+
 
 # C++
 
