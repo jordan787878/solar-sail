@@ -8,20 +8,20 @@ Four different initial orbits and environments are included. The blue line is th
 1. unconstrained state space
 <table>
   <tr>
-    <td><img src="images/SetRRT_Solarsail_env1.png" alt="Image 1" style="width: 200px; height: 200px;"></td>
-    <td><img src="images/SetRRT_Solarsail_env2.png" alt="Image 2" style="width: 200px; height: 200px;"></td>
-    <td><img src="images/SetRRT_Solarsail_env3.png" alt="Image 1" style="width: 200px; height: 200px;"></td>
-    <td><img src="images/SetRRT_Solarsail_env4.png" alt="Image 2" style="width: 200px; height: 200px;"></td>
+    <td><img src="images/SetRRT_Solarsail_env1.png" alt="Image 1" style="width: 300px; height: 300px;"></td>
+    <td><img src="images/SetRRT_Solarsail_env2.png" alt="Image 2" style="width: 300px; height: 300px;"></td>
+    <td><img src="images/SetRRT_Solarsail_env3.png" alt="Image 1" style="width: 300px; height: 300px;"></td>
+    <td><img src="images/SetRRT_Solarsail_env4.png" alt="Image 2" style="width: 300px; height: 300px;"></td>
   </tr>
 </table>
 
 2. state space with circular unsafe regions
 <table>
   <tr>
-   <td><img src="images/SetRRT_Solarsail_env1_unsafe3.png" alt="Image 1" style="width: 200px; height: 200px;"></td>
-    <td><img src="images/SetRRT_Solarsail_env2_unsafe3.png" alt="Image 2" style="width: 200px; height: 200px;"></td>
-    <td><img src="images/SetRRT_Solarsail_env3_unsafe3.png" alt="Image 1" style="width: 200px; height: 200px;"></td>
-    <td><img src="images/SetRRT_Solarsail_env4_unsafe3.png" alt="Image 2" style="width: 200px; height: 200px;"></td>
+   <td><img src="images/SetRRT_Solarsail_env1_unsafe3.png" alt="Image 1" style="width: 300px; height: 300px;"></td>
+    <td><img src="images/SetRRT_Solarsail_env2_unsafe3.png" alt="Image 2" style="width: 300px; height: 300px;"></td>
+    <td><img src="images/SetRRT_Solarsail_env3_unsafe3.png" alt="Image 1" style="width: 300px; height: 300px;"></td>
+    <td><img src="images/SetRRT_Solarsail_env4_unsafe3.png" alt="Image 2" style="width: 300px; height: 300px;"></td>
   </tr>
 </table>
 
@@ -39,28 +39,22 @@ cmake --build build
 
 ## build dockerfile
 ```console
-docker build -t jordan787878/solarsail-landing:tag .
+docker build -t jordan787878/solarsail:tag .
 ```
 
-## run dockerfile
-``` 
-docker run -it jordan787878/solarsail-landing bash
-./build/bin/test_main
+## run dockerfile to init develop environment
+```console
+docker run -it --name solarsail-dev --rm -v $(pwd):/develop jordan787878/solarsail:tag
 ```
-or run it on the docker volume: solarsail-volume
-```
-docker run -v solarsail-volume:/app/outputs -it jordan787878/solarsail-landing bash
+
+## build after coding
+```console
+cd build
+cmake ..
+make
 ```
 
 ## push dockerfile
 ```
-docker push jordan787878/solarsail-landing
+docker push jordan787878/solarsail:tag
 ```
-
-# Developingv
-## output filesystem for python visualization
-Create a docker volume: solarsail-volume to store output files
-Go to Docker Desktop/Volumes to access the output files
-
-## Put source code into Github, and follow the Gitflow 
-Need to think about the output file and python visual scripts
