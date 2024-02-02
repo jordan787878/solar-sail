@@ -1,6 +1,7 @@
 #include "SetRRT.h"
 
-std::vector<Eigen::VectorXd> SetRRT::plan(const Eigen::VectorXd& x_init, const std::vector<Eigen::VectorXd> x_finals){
+std::vector<Eigen::VectorXd> SetRRT::plan(const Eigen::VectorXd& x_init, 
+                                          const std::vector<Eigen::VectorXd> x_goals){
     init_plan(x_init);
 
     std::vector<Eigen::VectorXd> solution;
@@ -10,17 +11,19 @@ std::vector<Eigen::VectorXd> SetRRT::plan(const Eigen::VectorXd& x_init, const s
         int node_select = select_node();
         // std::cout << "[DEBUG] select_node: " << node_select << "\n";
 
-        Eigen::VectorXd control_sample = get_control_sample(ode_solver_pointer->ode_pointer->u_min, ode_solver_pointer->ode_pointer->u_max);
+        Eigen::VectorXd control_sample = get_control_sample(
+                                    ode_solver_pointer->ode_pointer->u_min, 
+                                    ode_solver_pointer->ode_pointer->u_max);
         // std::cout << "[DEBUG] control sample:"; print_eigen_vector(control_sample);
 
-        Eigen::VectorXd* state_new_pointer = get_state_new_pointer(node_select, control_sample, x_finals);
+        Eigen::VectorXd* state_new_pointer = get_state_new_pointer(node_select, control_sample, x_goals);
         if(state_new_pointer){
             Eigen::VectorXd state_new = (*state_new_pointer);
             // std::cout << "[DEBUG] state new:"; print_eigen_vector(state_new);
 
             connect(node_select, control_sample, state_new);
 
-            if(ode_solver_pointer->ode_pointer->is_goals(state_new, x_finals)){
+            if(ode_solver_pointer->ode_pointer->is_goals(state_new, x_goals)){
                 std::cout << "[IsGoal:True]\n";
                 solution = construct_solution();
                 return solution;
@@ -34,7 +37,9 @@ std::vector<Eigen::VectorXd> SetRRT::plan(const Eigen::VectorXd& x_init, const s
 }
 
 
-std::vector<Eigen::VectorXd> SetRRT::construct_trajectory(const std::vector<Eigen::VectorXd>& solution, bool is_process_noise){
+std::vector<Eigen::VectorXd> SetRRT::construct_trajectory(const std::vector<Eigen::VectorXd>& solution, 
+                                                          const std::vector<Eigen::VectorXd> x_goals,
+                                                          bool is_process_noise){
 
     std::vector<Eigen::VectorXd> trajectory;
     Eigen::VectorXd row0 = solution[0];
@@ -49,14 +54,20 @@ std::vector<Eigen::VectorXd> SetRRT::construct_trajectory(const std::vector<Eige
             Eigen::VectorXd u = control.head(size_u-1);
             double time_of_control = control[size_u-1];
             std::vector<Eigen::VectorXd> traj_segment;
-            traj_segment =  ode_solver_pointer->solver_runge_kutta(x, u, ode_solver_pointer->time_integration, time_of_control, {}, is_process_noise);
+            traj_segment =  ode_solver_pointer->solver_runge_kutta(
+                                        x, 
+                                        u, 
+                                        ode_solver_pointer->time_integration, 
+                                        time_of_control, 
+                                        x_goals, 
+                                        is_process_noise);
             trajectory.insert(trajectory.end(), traj_segment.begin(), traj_segment.end());
             x = trajectory.back();
         }
         else{
             std::cout << "goal state (sim): "; print_eigen_vector(x); std::cout << "\n";
             double traj_sol_difference = (x - solution[i].head(size_x)).norm();
-            std::cout << "difference between trajectorr and solution: " << traj_sol_difference << "\n";
+            std::cout << "difference between trajectory and solution: " << traj_sol_difference << "\n";
         }
     }
     return trajectory;
@@ -134,6 +145,7 @@ void SetRRT::connect(const int node_select, const Eigen::VectorXd control_apply,
     nodes.push_back(node_new);
     node_to_state[node_new] = state_new;
     // std::cout << "[DEBUG] connect: " << node_new << " to " << node_select << "\n";
+    // std::cout << "state new:"; print_eigen_vector(state_new);
     graph.connect(node_new, node_select);
     std::pair<int, int> edge(node_select, node_new);
     edge_to_control[edge] = control_apply;

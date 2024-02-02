@@ -2,16 +2,16 @@
 
 #include "OdeVirtual.h"
 #include <Eigen/Dense>
-#include "UnsafeCircle.h"
 
 class OdeSimpleExample : public OdeVirtual {
 public:
-    // Unsafe
-    UnsafeCircle unsafe_circle_regions;
-
     OdeSimpleExample(std::string name) : OdeVirtual(name){}
 
-    Eigen::VectorXd get_dxdt(const double &t, const Eigen::VectorXd &x, const Eigen::VectorXd &u, bool is_process_noise = false) override;
+    Eigen::VectorXd get_dxdt(const double &t, 
+                             const Eigen::VectorXd &x, 
+                             const Eigen::VectorXd &u, 
+                             bool is_process_noise=false,
+                             const int mode=0) override;
 
     bool is_out_of_domain(const Eigen::VectorXd& s) override;
 

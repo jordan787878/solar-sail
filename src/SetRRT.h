@@ -15,9 +15,12 @@ public:
 
     SetRRT(std::string name) : PlannerVirtual(name){}
 
-    std::vector<Eigen::VectorXd> plan(const Eigen::VectorXd& x_init, const std::vector<Eigen::VectorXd> x_finals) override;
+    std::vector<Eigen::VectorXd> plan(const Eigen::VectorXd& x_init, 
+                                      const std::vector<Eigen::VectorXd> x_goals) override;
 
-    std::vector<Eigen::VectorXd> construct_trajectory(const std::vector<Eigen::VectorXd>& solution, bool is_process_noise=false) override;
+    std::vector<Eigen::VectorXd> construct_trajectory(const std::vector<Eigen::VectorXd>& solution, 
+                                                      const std::vector<Eigen::VectorXd> x_goals={},
+                                                      bool is_process_noise=false) override;
 
     void link_ode_solver_pointer(OdeSolver* pointer);
 

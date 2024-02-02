@@ -15,8 +15,10 @@ class PlannerVirtual{
         int size_u;
 
         PlannerVirtual(std::string name){planner_name = name;}
-		virtual std::vector<Eigen::VectorXd> plan(const Eigen::VectorXd& x_init, const std::vector<Eigen::VectorXd> x_finals) = 0;
-        virtual std::vector<Eigen::VectorXd> construct_trajectory(const std::vector<Eigen::VectorXd>& solution, bool is_process_noise=false) = 0;
+		virtual std::vector<Eigen::VectorXd> plan(const Eigen::VectorXd& x_init, const std::vector<Eigen::VectorXd> x_goals) = 0;
+        virtual std::vector<Eigen::VectorXd> construct_trajectory(const std::vector<Eigen::VectorXd>& solution, 
+                                                                  const std::vector<Eigen::VectorXd> x_goals={},
+                                                                  bool is_process_noise=false) = 0;
 
     protected:
         void print_eigen_vector(const Eigen::VectorXd);

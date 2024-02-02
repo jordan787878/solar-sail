@@ -1,7 +1,11 @@
 #include "OdeSolarsail.h"
 
 
-Eigen::VectorXd OdeSolarsail::get_dxdt(const double &t, const Eigen::VectorXd &x, const Eigen::VectorXd &u, bool is_process_noise){
+Eigen::VectorXd OdeSolarsail::get_dxdt(const double &t, 
+                                       const Eigen::VectorXd &x, 
+                                       const Eigen::VectorXd &u, 
+                                       bool is_process_noise,
+                                       const int mode){
     double r1 = x[0]; double r2 = x[1]; double r3 = x[2];
     double v1 = x[3]; double v2 = x[4]; double v3 = x[5];
 

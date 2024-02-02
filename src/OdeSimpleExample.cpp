@@ -1,6 +1,10 @@
 #include "OdeSimpleExample.h"
 
-Eigen::VectorXd OdeSimpleExample::get_dxdt(const double &t, const Eigen::VectorXd &x, const Eigen::VectorXd &u, bool is_process_noise){
+Eigen::VectorXd OdeSimpleExample::get_dxdt(const double &t, 
+                                           const Eigen::VectorXd &x, 
+                                           const Eigen::VectorXd &u, 
+                                           bool is_process_noise,
+                                           const int mode){
     const int size = x.size();
     Eigen::VectorXd dxdt(size);
     dxdt[0] = -0.5 * x[0];
