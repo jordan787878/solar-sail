@@ -34,7 +34,7 @@ Four different initial orbits and environments are included. The blue line is th
 </table>
 
 4. Example Animation 
-[Click to Play Video]("html/videos.html")
+[Click to Play Video]("https://github.com/jordan787878/solar-sail/blob/feature-generalODE/videos.html")
 
 # C++
 
