@@ -71,18 +71,6 @@ namespace CONFIG_SOLARSAIL{
         return radius;
     }
 
-    std::vector<Eigen::VectorXd> get_random_unsafe_centers_km(const int n, const double pos_min, const double pos_max){
-        std::vector<Eigen::VectorXd> centers;
-        Eigen::VectorXd center(3);
-        for(int i=0; i<n; i++){
-            center << HELPER::getRandomDouble(pos_min, pos_max), 
-                      HELPER::getRandomDouble(pos_min, pos_max), 
-                      HELPER::getRandomDouble(pos_min, pos_max);
-            centers.push_back(center);
-        }
-        return centers;
-    }
-
     std::vector<double> get_random_unsafe_raidus_km(const int n, const double r_min, const double r_max){
         std::vector<double> radius;
         double rad1;
@@ -91,6 +79,37 @@ namespace CONFIG_SOLARSAIL{
             radius.push_back(rad1);
         }
         return radius;
+    }
+
+    std::vector<Eigen::VectorXd> get_random_unsafe_centers_km(const int n, const double pos_min, const double pos_max, const std::vector<double>& rads,
+                                                              const Eigen::VectorXd x_start, const std::vector<Eigen::VectorXd>& x_goals,
+                                                              const double unit_length){
+        std::vector<Eigen::VectorXd> centers;
+        Eigen::VectorXd center(3);
+        for(int i=0; i<n; i++){
+            const double rad = rads[i];
+            while(true){
+                bool is_center_appropriate = false;
+                center << HELPER::getRandomDouble(pos_min, pos_max), 
+                          HELPER::getRandomDouble(pos_min, pos_max), 
+                          HELPER::getRandomDouble(pos_min, pos_max);
+                for(const auto& goal : x_goals){
+                    // [To Implement] if this occurs, don't run the below if check and contine while loop
+                    double distance_to_goal = (center.head(3) - unit_length*(goal.head(3))).norm();
+                    double distance_to_start = (center.head(3) - unit_length*(x_start.head(3))).norm();
+                    std::cout << distance_to_goal << "\t" << distance_to_start << "\t" << rad << "\n";
+                    if(distance_to_goal > rad && distance_to_start > rad){
+                        is_center_appropriate = true;
+                        break;
+                    }
+                }
+                if(is_center_appropriate){
+                    break;
+                }
+            }
+            centers.push_back(center);
+        }
+        return centers;
     }
 
 }

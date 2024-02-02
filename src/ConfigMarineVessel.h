@@ -35,19 +35,24 @@ namespace CONFIG_MARINE_VESSEL{
         return radius;
     }
 
-    std::vector<Eigen::VectorXd> get_random_unsafe_centers_km(const int n, const double pos_min, const double pos_max){
+    std::vector<Eigen::VectorXd> get_random_unsafe_centers(const int n, const double pos_min, const double pos_max){
         std::vector<Eigen::VectorXd> centers;
-        Eigen::VectorXd center(3);
+        Eigen::VectorXd center(2);
         for(int i=0; i<n; i++){
-            center << HELPER::getRandomDouble(pos_min, pos_max), 
-                      HELPER::getRandomDouble(pos_min, pos_max), 
-                      HELPER::getRandomDouble(pos_min, pos_max);
+            while(true){
+                center << HELPER::getRandomDouble(pos_min, pos_max), 
+                          HELPER::getRandomDouble(pos_min, pos_max);
+
+                if(center[1] <= 6){
+                    break;
+                }
+            }
             centers.push_back(center);
         }
         return centers;
     }
 
-    std::vector<double> get_random_unsafe_raidus_km(const int n, const double r_min, const double r_max){
+    std::vector<double> get_random_unsafe_raidus(const int n, const double r_min, const double r_max){
         std::vector<double> radius;
         double rad1;
         for(int i=0; i<n; i++){

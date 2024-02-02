@@ -15,13 +15,35 @@ void test(){
     OdeSolarsail ode_solarsail("Solarsail");
     ode_solarsail.set_params(CONFIG_SOLARSAIL::get_parameters(env));
 
+    // Define domain
     Eigen::VectorXd x_min(6); x_min << -1, -1, -1, -50, -50, -50;
     Eigen::VectorXd x_max(6); x_max << 1, 1, 1, 50, 50, 50;
     Eigen::VectorXd u_min(3); u_min << -0.5*M_PI, 0.0, 0.001;
     Eigen::VectorXd u_max(3); u_max << 0.5*M_PI, 2*M_PI, 0.1;
     ode_solarsail.set_domain(x_min, x_max, u_min, u_max);
-    ode_solarsail.set_unsafecircles(3, CONFIG_SOLARSAIL::get_random_unsafe_centers_km(3, -5.0, 5.0), 
-                                        CONFIG_SOLARSAIL::get_random_unsafe_raidus_km(3, 0.5, 1.5));
+
+    // Define start
+    Eigen::VectorXd x_start(6);
+    for(int i=0; i<6; i++){x_start[i] = CONFIG_SOLARSAIL::get_state_init(env)[i];}
+
+    // Define goal
+    std::vector<Eigen::VectorXd> x_goals;
+    Eigen::VectorXd x_goal(6);  x_goal << 0, 0, 0, 0, 0, 0;
+    x_goals.push_back(x_goal);
+
+    // Define unsafe
+    std::cout << "setting unsafe...\n";
+    const int unsafe_regions = 10;
+    std::vector<double> unsafe_circle_radius = CONFIG_SOLARSAIL::get_random_unsafe_raidus_km(unsafe_regions, 0.3, 1.0);
+    std::vector<Eigen::VectorXd> unsafe_circle_center = CONFIG_SOLARSAIL::get_random_unsafe_centers_km(
+        unsafe_regions, -4.0, 4.0, 
+        unsafe_circle_radius, 
+        x_start, 
+        x_goals,
+        ode_solarsail.unit_length);
+    ode_solarsail.set_unsafecircles(3, unsafe_circle_center, unsafe_circle_radius);
+    std::cout << "complet unsafe setting\n";
+
     ode_solarsail.set_r_ast(0.25);
     Eigen::VectorXd process_mean(3); process_mean << CONFIG_SOLARSAIL::get_process_mean();
     Eigen::MatrixXd process_cov(3,3); process_cov << CONFIG_SOLARSAIL::get_process_cov();
@@ -42,8 +64,6 @@ void test(){
     PlannerVirtual* planner_pointer = &setrrt_planner;
 
     // test ode_solver works in planner
-    Eigen::VectorXd x_start(6);
-    for(int i=0; i<6; i++){x_start[i] = CONFIG_SOLARSAIL::get_state_init(env)[i];}
     Eigen::VectorXd empty_control = Eigen::VectorXd::Zero(3);
     std::vector<Eigen::VectorXd> empoty_goal_states;
     double time_nominal = 0.5;
@@ -60,10 +80,7 @@ void test(){
     std::string nom_traj_file = "outputs/" + ode_pointer->ode_name + "_env" + std::to_string(env) + "_traj.csv";
     HELPER::write_traj_to_csv(nom_traj, nom_traj_file);
 
-    std::vector<Eigen::VectorXd> x_goals;
-    Eigen::VectorXd x_goal(6);
-    x_goal << 0, 0, 0, 0, 0, 0;
-    x_goals.push_back(x_goal);
+    // Plan
     std::vector<Eigen::VectorXd> sol = planner_pointer->plan(x_start, x_goals);
     HELPER::log_trajectory(sol);
     std::string sol_file = "outputs/" + planner_pointer->planner_name + "_" + ode_pointer->ode_name + "_env" + std::to_string(env) + "_sol.csv";

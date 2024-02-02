@@ -8,22 +8,33 @@ Four different initial orbits and environments are included. The blue line is th
 1. unconstrained state space
 <table>
   <tr>
-    <td><img src="images/SetRRT_Solarsail_env1.png" alt="Image 1" style="width: 300px; height: 300px;"></td>
-    <td><img src="images/SetRRT_Solarsail_env2.png" alt="Image 2" style="width: 300px; height: 300px;"></td>
-    <td><img src="images/SetRRT_Solarsail_env3.png" alt="Image 1" style="width: 300px; height: 300px;"></td>
-    <td><img src="images/SetRRT_Solarsail_env4.png" alt="Image 2" style="width: 300px; height: 300px;"></td>
+    <td><img src="images/SetRRT_Solarsail_env1.png" alt="Image 1" style="width: 200px; height: 150px;"></td>
+    <td><img src="images/SetRRT_Solarsail_env2.png" alt="Image 2" style="width: 200px; height: 150px;"></td>
+    <td><img src="images/SetRRT_Solarsail_env3.png" alt="Image 1" style="width: 200px; height: 150px;"></td>
+    <td><img src="images/SetRRT_Solarsail_env4.png" alt="Image 2" style="width: 200px; height: 150px;"></td>
   </tr>
 </table>
 
 2. state space with circular unsafe regions
 <table>
   <tr>
-   <td><img src="images/SetRRT_Solarsail_env1_unsafe3.png" alt="Image 1" style="width: 300px; height: 300px;"></td>
-    <td><img src="images/SetRRT_Solarsail_env2_unsafe3.png" alt="Image 2" style="width: 300px; height: 300px;"></td>
-    <td><img src="images/SetRRT_Solarsail_env3_unsafe3.png" alt="Image 1" style="width: 300px; height: 300px;"></td>
-    <td><img src="images/SetRRT_Solarsail_env4_unsafe3.png" alt="Image 2" style="width: 300px; height: 300px;"></td>
+   <td><img src="images/SetRRT_Solarsail_env1_unsafe3.png" alt="Image 1" style="width: 200px; height: 150px;"></td>
+    <td><img src="images/SetRRT_Solarsail_env2_unsafe3.png" alt="Image 2" style="width: 200px; height: 150px;"></td>
+    <td><img src="images/SetRRT_Solarsail_env3_unsafe3.png" alt="Image 1" style="width: 200px; height: 150px;"></td>
+    <td><img src="images/SetRRT_Solarsail_env4_unsafe3.png" alt="Image 2" style="width: 200px; height: 150px;"></td>
   </tr>
 </table>
+
+3. 10 Unsafe Regions: State and Control Trajectory
+<table>
+  <tr>
+   <td><img src="images/solarsail_trajs.png" alt="Image 1" style="width: 400px; height: 300px;"></td>
+    <td><img src="images/solarsail_controls.png" alt="Image 2" style="width: 400px; height: 300px;"></td>
+  </tr>
+</table>
+
+4. Example Animation 
+[Click to Play Video](https://jordan787878.github.io/solar-sail/videos.html)
 
 # C++
 

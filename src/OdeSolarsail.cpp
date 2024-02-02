@@ -63,7 +63,7 @@ bool OdeSolarsail::is_in_unsafe(const Eigen::VectorXd& s){
             double dist_to_cent = (unit_length*(s.head(3)) - cent).norm();
             // std::cout << dist_to_cent << " " << unsafe_circle_regions.radius[i] + safe_buffer << "\n";
             if(dist_to_cent <= unsafe_circle_regions.radius[i] + safe_buffer){
-                std::cout << "[DEBUG] is in unsafe\n";
+                // std::cout << "[DEBUG] is in unsafe\n";
                 return true;
             }
         }
