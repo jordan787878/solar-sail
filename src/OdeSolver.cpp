@@ -15,12 +15,12 @@ std::vector<Eigen::VectorXd> OdeSolver::solver_runge_kutta(
                                         bool check_unsafe){
 
     std::vector<Eigen::VectorXd> x_traj;
-    const int size_x = x0.size();
+    const int size_x = x0.size(); 
     double t = 0;
     int k = 0;
     Eigen::VectorXd x(size_x);
 
-    x = x0;
+    x = x0; 
     x_traj.push_back(x);
 
     while (t < t_end) {
