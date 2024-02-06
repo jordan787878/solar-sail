@@ -64,6 +64,12 @@ An inverted pendulum is attached to a cart. The cart is controlled by a horizont
   </tr>
 </table>
 
+Animation
+
+https://github.com/jordan787878/solar-sail/assets/17584164/792cc468-f7bf-4b48-9427-c15772dc625e
+
+https://github.com/jordan787878/solar-sail/assets/17584164/afa2f726-c145-4ed2-8616-7e9e73bec88f
+
 # C++
 
 ## build the project
