@@ -53,9 +53,16 @@ Animation
 
 https://github.com/jordan787878/solar-sail/assets/17584164/b0716dbc-bea3-4bb8-bcaa-bb576a97cb03
 
-
-
-
+## Cart and Inverted Pendulum
+An inverted pendulum is attached to a cart. The cart is controlled by a horizontal force u. The system has four states: angle and angular rate of the inverted pendulum; position and velocity of the cart. The goal is to: 
+1. swing up the inverted pendulum such that it is at the upright position. 
+2. the position and the velocity of the cart should also reach a certain region.
+<table>
+  <tr>
+   <td><img src="images/invertpendulum_simple_1_state.png" alt="Image 1" style="width: 400px; height: 300px;"></td>
+    <td><img src="images/invertpendulum_simple_1_control.png" alt="Image 2" style="width: 400px; height: 300px;"></td>
+  </tr>
+</table>
 
 # C++
 
