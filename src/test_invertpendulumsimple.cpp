@@ -9,6 +9,10 @@
 #include "helperfunctions.h"
 
 
+// Next step: stabilizing the pendulum over T time.
+// 1. simply replanning does not work.
+
+
 std::tuple<OdeVirtual* , PlannerVirtual*, Eigen::VectorXd, std::vector<Eigen::VectorXd> > define_problem(){
     // Define ode
     OdeInvertPendulumSimple* ode_pointer = new OdeInvertPendulumSimple("InvertPendulumSimple");
@@ -27,10 +31,10 @@ std::tuple<OdeVirtual* , PlannerVirtual*, Eigen::VectorXd, std::vector<Eigen::Ve
     ode_pointer->set_domain(x_min, x_max, u_min, u_max);
     // ode_marine_vessel.set_unsafecircles(2, CONFIG_MARINE_VESSEL::get_random_unsafe_centers(15, 0, 10), 
     //                                        CONFIG_MARINE_VESSEL::get_random_unsafe_raidus(15, 0.25, 0.5));
-    // // Eigen::VectorXd process_mean(3); process_mean << CONFIG_SOLARSAIL::get_process_mean();
-    // // Eigen::MatrixXd process_cov(3,3); process_cov << CONFIG_SOLARSAIL::get_process_cov();
-    // // ode_solarsail.set_process_noise(process_mean, process_cov);
-    // OdeVirtual& ode_pointer = &ode_invert_pendulum_simple;
+    Eigen::VectorXd process_mean(2);  process_mean << 0.0, 0.0;
+    Eigen::MatrixXd process_cov(2,2); process_cov  << 1.0, 0.0,
+                                                      0.0, 0.01;
+    ode_pointer->set_process_noise(process_mean, process_cov);
 
     // // Define Unsafe for Visualization
     // std::string unsafe_file = "outputs/" + ode_pointer->ode_name + "_unsafe.csv";
@@ -90,14 +94,20 @@ void plan(){
     HELPER::write_traj_to_csv(sol, sol_file);
 
     // Construct and write trajectory
-    std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol); // HELPER::log_trajectory(traj);
+    std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol);
     std::string traj_file = "outputs/" + planner_pointer->planner_name + "_" 
                             + ode_pointer->ode_name + "_traj.csv";
-    HELPER::write_traj_to_csv(traj, traj_file);
+    HELPER::write_traj_to_csv(traj, traj_file); // HELPER::log_trajectory(traj);
+
+    // Construct Controlled Trajectory subject to Process noise
+    std::vector<Eigen::VectorXd> traj_noise = planner_pointer->construct_trajectory(sol, {}, true);
+    std::string traj_noise_file = "outputs/" + planner_pointer->planner_name + "_" + ode_pointer->ode_name + "_noise_traj.csv";
+    HELPER::write_traj_to_csv(traj_noise, traj_noise_file); // HELPER::log_trajectory(traj_noise);
+    HELPER::log_vector(traj_noise[traj_noise.size()-1]);
 }
 
 
-void plan_AO(){
+void plan_ao(){
     auto [ode_pointer, planner_pointer, x_start, x_goals] = define_problem();    
     std::cout << "ode: " << ode_pointer->ode_name << "\n";
     std::cout << "planner: " << planner_pointer->planner_name << "\n";
@@ -135,6 +145,136 @@ void plan_AO(){
 }
 
 
+void replan_fixedupdate_realtime(){
+    // Assume the planning time is instantaneous
+    auto [ode_pointer, planner_pointer, x_start, x_goals] = define_problem();    
+    std::cout << "ode: " << ode_pointer->ode_name << "\n";
+    std::cout << "planner: " << planner_pointer->planner_name << "\n";
+    const int size_x = 4;
+    const int size_u = 2;
+
+    const double time_simulation = 50.0;
+    double time_control_update = 0.1;
+    std::vector<Eigen::VectorXd> traj;
+    std::vector<Eigen::VectorXd> state_control_traj;
+    Eigen::VectorXd x0 = x_start;
+
+    for(int i=0; i<int(time_simulation/time_control_update); i++){
+        // Plan
+        std::vector<Eigen::VectorXd> sol = planner_pointer->plan(x0, x_goals);
+
+        // Get first control
+        Eigen::VectorXd control(size_u-1);
+        for(int i=0; i<size_u-1; i++){
+            control[i] = sol[0][size_x+i];
+        }
+
+        // State and control pair
+        Eigen::VectorXd state_and_control;
+        state_and_control.conservativeResize(x0.size() + control.size());
+        state_and_control << x0, control;
+        state_control_traj.push_back(state_and_control);
+
+        //Execute with noise
+        std::vector<Eigen::VectorXd> traj_segment;
+        traj_segment = planner_pointer->ode_solver_pointer->solver_runge_kutta(
+                                        x0, 
+                                        control, 
+                                        planner_pointer->ode_solver_pointer->time_integration, 
+                                        time_control_update, 
+                                        {}, 
+                                        false);
+        // check if out-of-domain
+        if(traj_segment.empty()){
+            break;
+        }
+        // update
+        traj.insert(traj.end(), traj_segment.begin(), traj_segment.end());
+        x0 = traj_segment.back();
+        std::cout << "time update to: " << (i+1)*time_control_update << "\n";
+        std::cout << "state update to:"; HELPER::log_vector(x0);
+    }
+    std::string traj_file = "outputs/" + planner_pointer->planner_name + "_" 
+                            + ode_pointer->ode_name + "_realtime_traj.csv";
+    HELPER::write_traj_to_csv(traj, traj_file);
+
+    std::string state_control_file = "outputs/" + planner_pointer->planner_name + "_" 
+                            + ode_pointer->ode_name + "_statecontrol.csv";
+    HELPER::write_traj_to_csv(state_control_traj, state_control_file);
+}
+
+
+void replan_adaptupdate_realtime(){
+    // Assume the planning time is instantaneous
+    auto [ode_pointer, planner_pointer, x_start, x_goals] = define_problem();    
+    std::cout << "ode: " << ode_pointer->ode_name << "\n";
+    std::cout << "planner: " << planner_pointer->planner_name << "\n";
+    const int size_x = 4;
+    const int size_u = 2;
+
+    const double time_simulation = 50.0;
+    std::vector<Eigen::VectorXd> traj;
+    std::vector<Eigen::VectorXd> state_control_traj;
+    Eigen::VectorXd x0 = x_start;
+    double time = 0.0;
+
+    while(true){
+        // Plan
+        std::vector<Eigen::VectorXd> sol = planner_pointer->plan(x0, x_goals);
+        std::cout << "sol0:"; HELPER::log_vector(sol[0]);
+
+        // Get first control
+        Eigen::VectorXd control(size_u-1);
+        for(int i=0; i<size_u-1; i++){
+            control[i] = sol[0][size_x+i];
+        }
+
+        double time_control_update = sol[0][size_x + size_u -1];
+        if(time_control_update < 0.1){
+            time_control_update = 0.1;
+        }
+
+        // State and control pair
+        Eigen::VectorXd state_and_control;
+        state_and_control.conservativeResize(x0.size() + control.size());
+        state_and_control << x0, control;
+        state_control_traj.push_back(state_and_control);
+
+        //Execute with noise
+        std::vector<Eigen::VectorXd> traj_segment;
+        traj_segment = planner_pointer->ode_solver_pointer->solver_runge_kutta(
+                                        x0, 
+                                        control, 
+                                        planner_pointer->ode_solver_pointer->time_integration, 
+                                        time_control_update, 
+                                        {}, 
+                                        false);
+        // check if out-of-domain
+        if(traj_segment.empty()){
+            break;
+        }
+        // update
+        traj.insert(traj.end(), traj_segment.begin(), traj_segment.end());
+        x0 = traj_segment.back();
+        time = time + time_control_update;
+        std::cout << "time update to: " << time << "\n";
+        std::cout << "state update to:"; HELPER::log_vector(x0);
+        // check if simulation time is up
+        if(time >= time_simulation){
+            break;
+        }
+    }
+
+    std::string traj_file = "outputs/" + planner_pointer->planner_name + "_" 
+                            + ode_pointer->ode_name + "_realtime_traj.csv";
+    HELPER::write_traj_to_csv(traj, traj_file);
+
+    std::string state_control_file = "outputs/" + planner_pointer->planner_name + "_" 
+                            + ode_pointer->ode_name + "_statecontrol.csv";
+    HELPER::write_traj_to_csv(state_control_traj, state_control_file);
+}
+
+
 int main(){
     std::cout << "[test invertpendulumsimple]\n";
 
@@ -142,7 +282,11 @@ int main(){
 
     // plan();
 
-    plan_AO();
+    // plan_ao();
+
+    // replan_fixedupdate_realtime();
+
+    replan_adaptupdate_realtime();
 
     return 0;
 }
