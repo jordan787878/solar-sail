@@ -8,6 +8,7 @@
 #include <fstream>
 #include <vector>
 #include <string>
+#include <iomanip>
 
 namespace HELPER{
 
@@ -89,6 +90,13 @@ double getRandomDouble(double x_min, double x_max) {
     return value;
     // double multiplier = std::pow(10.0, 3);
     // return std::round(value * multiplier) / multiplier;
+}
+
+
+std::string doubleToString(double value) {
+    std::stringstream stream;
+    stream << std::fixed << std::setprecision(2) << value;
+    return stream.str();
 }
 
 }

@@ -33,7 +33,7 @@ std::vector<Eigen::VectorXd> OdeSolver::solver_runge_kutta(
             return x_traj;
         }
         if(ode_pointer->is_goals(x,x_goals)){
-            std::cout << "[DEBUG] update time from " << t_end << " to " << t << "\n";
+            // std::cout << "[DEBUG] update time from " << t_end << " to " << t << "\n";
             t_end = t; // update the end time
             return x_traj;
         }
