@@ -65,17 +65,43 @@ An inverted pendulum is attached to a cart. The cart is controlled by a horizont
 </table>
 
 Animation
-
-https://github.com/jordan787878/solar-sail/assets/17584164/792cc468-f7bf-4b48-9427-c15772dc625e
-
-https://github.com/jordan787878/solar-sail/assets/17584164/afa2f726-c145-4ed2-8616-7e9e73bec88f
-
+<table>
+  <tr>
+   <td>cart x = 0<img src="https://github.com/jordan787878/solar-sail/assets/17584164/792cc468-f7bf-4b48-9427-c15772dc625e" alt="Image 1" style="width: 500px; height: 400px;"></td>
+   <td>cart x = 1<img src="https://github.com/jordan787878/solar-sail/assets/17584164/afa2f726-c145-4ed2-8616-7e9e73bec88f" alt="Image 2" style="width: 500px; height: 400px;"></td>
+  </tr>
+</table>
 
 # Optimization
 We can further optimize the controlled trajectory using the Set-RRT-AO planner. The -AO stands for asymptotically optimal. 
 
 ## Minimize Total Time of Control
 The cost measure is the total time of the controlled trajectory. We can obtain a faster solution to reach the goals. Below we show the examples of: solar sail, marine vessel, and cart inverted pendulum.
+
+1. Solar Sail
+<table>
+  <tr>
+   <td>time: big<img src="https://github.com/jordan787878/solar-sail/assets/17584164/5f0ec6d9-61f8-4084-ae2d-4e198ac591c8" alt="Image 1" style="width: 500px; height: 400px;"></td>
+   <td>time: small<img src="https://github.com/jordan787878/solar-sail/assets/17584164/e73037f8-683c-413c-ad71-d96560f94077" alt="Image 2" style="width: 500px; height: 400px;"></td>
+  </tr>
+</table>
+
+2. Marine Vessel
+<table>
+  <tr>
+   <td>time: big<img src="https://github.com/jordan787878/solar-sail/assets/17584164/8cae3cae-8773-4f90-888a-a56d6bf91510" alt="Image 1" style="width: 500px; height: 400px;"></td>
+   <td>time: small<img src="https://github.com/jordan787878/solar-sail/assets/17584164/9b8773af-747e-4082-8542-6e7e3e881b08" alt="Image 2" style="width: 500px; height: 400px;"></td>
+  </tr>
+</table>
+
+3. Cart Inverted Pendulum
+<table>
+  <tr>
+   <td>time: big<img src="https://github.com/jordan787878/solar-sail/assets/17584164/c46c0d86-74e6-4268-958e-501b40b0fb62" alt="Image 1" style="width: 500px; height: 400px;"></td>
+   <td>time: small<img src="https://github.com/jordan787878/solar-sail/assets/17584164/a2a53a66-ea38-443b-be71-3b6ed7af68d9" alt="Image 2" style="width: 500px; height: 400px;"></td>
+  </tr>
+</table>
+
 
 # C++
 
