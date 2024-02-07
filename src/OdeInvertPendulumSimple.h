@@ -26,6 +26,8 @@ public:
 
     void set_domain(const Eigen::VectorXd x_min_values, const Eigen::VectorXd x_max_values,
                     const Eigen::VectorXd u_min_values, const Eigen::VectorXd u_max_values);
+    
+    void set_process_noise(const Eigen::VectorXd mean, const Eigen::MatrixXd cov);
 
     // void set_unsafecircles(const double dimension, const std::vector<Eigen::VectorXd> center, const std::vector<double> radius);
 

@@ -21,6 +21,15 @@ Eigen::VectorXd OdeInvertPendulumSimple::get_dxdt(const double &t,
     dxdt[1] = sin(x1) - u1*cos(x1);
     dxdt[2] = x4;
     dxdt[3] = u1;
+
+    if(is_process_noise){
+        // acceleration process noise
+        Eigen::VectorXd process_noise = generateRandomVector(process_mean, process_covariance);
+        // std::cout << process_noise[0] << "\t" << process_noise[1] << "\n";
+        dxdt[1] = dxdt[1] + process_noise[0];
+        dxdt[3] = dxdt[3] + process_noise[1];
+    }
+
     return dxdt;
 }
 
@@ -119,6 +128,11 @@ double OdeInvertPendulumSimple::wrapToPi(double angle){
 }
 
 
+void OdeInvertPendulumSimple::set_process_noise(const Eigen::VectorXd mean, const Eigen::MatrixXd cov){
+    process_mean = mean;
+    process_covariance = cov;
+}
+
 // void OdeMarineVessel::set_unsafecircles(const double dimension, 
 //                                      const std::vector<Eigen::VectorXd> center, 
 //                                      const std::vector<double> radius){
@@ -136,24 +150,6 @@ double OdeInvertPendulumSimple::wrapToPi(double angle){
 
 //     for(int i=0; i<unsafe_circle_regions.radius.size(); i++){
 //         Eigen::VectorXd row(3);
-//         row << unsafe_circle_regions.radius[i], 
-//                unsafe_circle_regions.center[i][0], 
-//                unsafe_circle_regions.center[i][1], 
-//         data.push_back(row);
-//     }
-//     return data;
-// }
-
-
-// std::vector<Eigen::VectorXd> OdeMarineVessel::output_unsafecircles(){
-//     std::vector<Eigen::VectorXd> data;
-
-//     if(unsafe_circle_regions.radius.empty()){
-//         return data;
-//     }
-
-//     for(int i=0; i<unsafe_circle_regions.radius.size(); i++){
-//         Eigen::VectorXd row(unsafe_circle_regions.dimension+1);
 //         row << unsafe_circle_regions.radius[i], 
 //                unsafe_circle_regions.center[i][0], 
 //                unsafe_circle_regions.center[i][1], 
