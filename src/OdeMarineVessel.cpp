@@ -28,6 +28,9 @@ void OdeMarineVessel::set_domain(const Eigen::VectorXd x_min_values, const Eigen
 
 
 bool OdeMarineVessel::is_out_of_domain(const Eigen::VectorXd& s){
+    if(x_min.size() == 0){
+        return false;
+    }
     const int size_x = s.size();
     for(int i=0; i<size_x; i++){
         if(s[i] < x_min[i] || s[i] > x_max[i]){
@@ -49,7 +52,7 @@ bool OdeMarineVessel::is_in_unsafe(const Eigen::VectorXd& s){
         double dist_to_cent = (s.head(dimension) - cent).norm();
         // std::cout << dist_to_cent << " " << unsafe_circle_regions.radius[i] + safe_buffer << "\n";
         if(dist_to_cent <= unsafe_circle_regions.radius[i] + safe_buffer){
-            std::cout << "[DEBUG] is in unsafe\n";
+            //std::cout << "[DEBUG] is in unsafe\n";
             return true;
         }
     }
@@ -61,7 +64,6 @@ bool OdeMarineVessel::is_goals(const Eigen::VectorXd& s, const std::vector<Eigen
     if(goals.empty()){
         return false;
     }
-
     const int size = goals.size();
     for(int i=0; i<size; i++){
         if(s[i] < goals[i][0] || s[i] > goals[i][1]){
@@ -96,21 +98,3 @@ std::vector<Eigen::VectorXd> OdeMarineVessel::output_unsafecircles(){
     }
     return data;
 }
-
-
-// std::vector<Eigen::VectorXd> OdeMarineVessel::output_unsafecircles(){
-//     std::vector<Eigen::VectorXd> data;
-
-//     if(unsafe_circle_regions.radius.empty()){
-//         return data;
-//     }
-
-//     for(int i=0; i<unsafe_circle_regions.radius.size(); i++){
-//         Eigen::VectorXd row(unsafe_circle_regions.dimension+1);
-//         row << unsafe_circle_regions.radius[i], 
-//                unsafe_circle_regions.center[i][0], 
-//                unsafe_circle_regions.center[i][1], 
-//         data.push_back(row);
-//     }
-//     return data;
-// }

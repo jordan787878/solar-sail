@@ -44,7 +44,9 @@ namespace CONFIG_MARINE_VESSEL{
                           HELPER::getRandomDouble(pos_min, pos_max);
 
                 if(center[1] <= 6){
-                    break;
+                    if(center[0] > 1 && center[1] > 1){
+                        break;
+                    }
                 }
             }
             centers.push_back(center);

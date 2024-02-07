@@ -70,6 +70,13 @@ https://github.com/jordan787878/solar-sail/assets/17584164/792cc468-f7bf-4b48-94
 
 https://github.com/jordan787878/solar-sail/assets/17584164/afa2f726-c145-4ed2-8616-7e9e73bec88f
 
+
+# Optimization
+We can further optimize the controlled trajectory using the Set-RRT-AO planner. The -AO stands for asymptotically optimal. 
+
+## Minimize Total Time of Control
+The cost measure is the total time of the controlled trajectory. We can obtain a faster solution to reach the goals. Below we show the examples of: solar sail, marine vessel, and cart inverted pendulum.
+
 # C++
 
 ## build the project

@@ -71,8 +71,10 @@ bool OdeInvertPendulumSimple::is_goals(const Eigen::VectorXd& s, const std::vect
         double x2 = s[1];
         double x3 = s[2];
         double x4 = s[3];
+
         // std::cout << std::abs(x1-goals[i][0]) << " " << std::abs(x2-goals[i][1]) << " "
         //           << std::abs(x3-goals[i][2]) << " " << std::abs(x4-goals[i][3]) << "\n";
+
         if(std::abs(x1-goals[i][0]) > delta_to_goal[0]){
             return false;
         }

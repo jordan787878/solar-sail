@@ -12,6 +12,8 @@ public:
     std::vector<int> nodes;
     std::map<int, Eigen::VectorXd> node_to_state;
     std::map<std::pair<int, int>, Eigen::VectorXd> edge_to_control;
+    std::map<int, double> node_to_cost;
+    double control_resolution;
 
     SetRRT(std::string name) : PlannerVirtual(name){}
 
@@ -21,6 +23,8 @@ public:
     std::vector<Eigen::VectorXd> construct_trajectory(const std::vector<Eigen::VectorXd>& solution, 
                                                       const std::vector<Eigen::VectorXd> x_goals={},
                                                       bool is_process_noise=false) override;
+
+    virtual double get_cost() override;
 
     void link_ode_solver_pointer(OdeSolver* pointer);
 
@@ -38,7 +42,4 @@ protected:
     void print_nodes_and_states();
 
     std::vector<Eigen::VectorXd> construct_solution();
-
-
-
 };

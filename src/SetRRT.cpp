@@ -4,10 +4,12 @@ std::vector<Eigen::VectorXd> SetRRT::plan(const Eigen::VectorXd& x_init,
                                           const std::vector<Eigen::VectorXd> x_goals){
     init_plan(x_init);
 
+    // start timer
+    auto startTime = std::chrono::high_resolution_clock::now();
+
     std::vector<Eigen::VectorXd> solution;
 
     while(true){
-
         int node_select = select_node();
         // std::cout << "[DEBUG] select_node: " << node_select << "\n";
 
@@ -24,15 +26,22 @@ std::vector<Eigen::VectorXd> SetRRT::plan(const Eigen::VectorXd& x_init,
             connect(node_select, control_sample, state_new);
 
             if(ode_solver_pointer->ode_pointer->is_goals(state_new, x_goals)){
-                std::cout << "[IsGoal:True]\n";
-                solution = construct_solution();
-                return solution;
+                is_success = true;
             }
         }
 
-    }
+        // break planning
+        // 1. success
+        if(is_success){
+            std::cout << "[IsGoal:True]\n";
+            solution = construct_solution();
+            return solution;
+        }
+        if(exceed_plan_time_max(startTime)){
+            break;
+        }
+    }// end while loop
 
-    std::cout << "[DEBUG] nodes and states:\n"; print_nodes_and_states();
     return solution;
 }
 
@@ -74,28 +83,45 @@ std::vector<Eigen::VectorXd> SetRRT::construct_trajectory(const std::vector<Eige
 }
 
 
+double SetRRT::get_cost(){
+    const int node_goal = nodes.size()-1;
+    return node_to_cost[node_goal];
+}
+
+
 void SetRRT::link_ode_solver_pointer(OdeSolver* pointer){
     ode_solver_pointer = pointer;
 }
 
 
 void SetRRT::init_plan(const Eigen::VectorXd& x_init){
+    std::cout << "plan time max: " << plan_time_max << "\n";
+    is_success = false;
     graph.cleanGraph();
     nodes.clear();
     node_to_state.clear();
+    node_to_cost.clear();
     size_x = ode_solver_pointer->ode_pointer->x_min.size();
     size_u = ode_solver_pointer->ode_pointer->u_min.size();
 
     nodes.push_back(0);
     node_to_state[0] = x_init;
+    node_to_cost[0] = 0.0;
 }
 
 
 Eigen::VectorXd SetRRT::get_control_sample(const Eigen::VectorXd u_min, const Eigen::VectorXd u_max){
-    const int size_u = u_min.size();
+    int size_u = u_min.size();
     Eigen::VectorXd u(size_u);
     for(int i=0; i<size_u; i++){
-        u[i] = getRandomDouble(u_min[i], u_max[i]);
+        if(i == size_u-1){
+            int N = int(u_max[i]/u_min[i]);
+            u[i] = getRandomIntBounded(0, N) * u_min[i];
+        }
+        else{
+            double step = (u_max[i] - u_min[i])/(control_resolution);
+            u[i] = getRandomIntBounded(0, control_resolution)*step + u_min[i];
+        }
     }
     return u;
 }
@@ -129,6 +155,10 @@ Eigen::VectorXd* SetRRT::get_state_new_pointer(const int node_select,
     if(x_traj.empty()){
          return nullptr;
     }
+    if(node_to_cost[node_select] + control_sample[size_u-1] > cost_threshold){
+        // time of control to the new node
+        return nullptr;
+    }
 
     Eigen::VectorXd state_new;
     Eigen::VectorXd* state_new_pointer = new Eigen::VectorXd(state_new.size());
@@ -149,12 +179,16 @@ void SetRRT::connect(const int node_select, const Eigen::VectorXd control_apply,
     graph.connect(node_new, node_select);
     std::pair<int, int> edge(node_select, node_new);
     edge_to_control[edge] = control_apply;
+
+    double cost = node_to_cost[node_select] + control_apply[size_u-1];
+    node_to_cost[node_new] = cost;
 }
 
 
 std::vector<Eigen::VectorXd> SetRRT::construct_solution(){
     std::vector<int> solution_nodes;
     int node_current = nodes.size()-1;
+
     while(true){        
         solution_nodes.insert(solution_nodes.begin(), node_current);
         int node_parent = graph.findParent(node_current);

@@ -76,7 +76,7 @@ bool OdeSolarsail::is_goals(const Eigen::VectorXd& s, const std::vector<Eigen::V
     for(const auto& goal : goals){
         Eigen::VectorXd delta_pos = s.head(3) - goal.head(3);
         double distance = unit_length * delta_pos.norm();
-        if(distance < r_ast * 2){ std::cout << "distance: " << distance << "\n"; }
+        // if(distance < r_ast * 2){ std::cout << "distance: " << distance << "\n"; }
         if(distance <= r_ast){
             return true;
         }
