@@ -34,7 +34,7 @@ std::tuple<OdeVirtual* , PlannerVirtual*, Eigen::VectorXd, std::vector<Eigen::Ve
 
     // Define unsafe
     std::cout << "setting unsafe...\n";
-    const int unsafe_regions = 10;
+    const int unsafe_regions = 1;
     std::vector<double> unsafe_circle_radius = CONFIG_SOLARSAIL::get_random_unsafe_raidus_km(unsafe_regions, 0.3, 1.0);
     std::vector<Eigen::VectorXd> unsafe_circle_center = CONFIG_SOLARSAIL::get_random_unsafe_centers_km(
         unsafe_regions, -4.0, 4.0, 
@@ -62,7 +62,7 @@ std::tuple<OdeVirtual* , PlannerVirtual*, Eigen::VectorXd, std::vector<Eigen::Ve
     // Define planner
     SetRRT* planner_pointer = new SetRRT("SetRRT");
     planner_pointer->link_ode_solver_pointer(ode_solver_ptr);
-    planner_pointer->control_resolution = 100.0;
+    planner_pointer->control_resolution = 50.0;
 
     // // test ode_solver works in planner
     // Eigen::VectorXd empty_control = Eigen::VectorXd::Zero(3);
@@ -100,9 +100,9 @@ void plan(){
     HELPER::write_traj_to_csv(traj, traj_file);
 
     // Construct Controlled Trajectory subject to Process noise
-    std::vector<Eigen::VectorXd> traj_noise = planner_pointer->construct_trajectory(sol, x_goals, true);
-    std::string traj_noise_file = "outputs/" + planner_pointer->planner_name + "_" + ode_pointer->ode_name + "_env" + std::to_string(env) + "_trajnoise.csv";
-    HELPER::write_traj_to_csv(traj_noise, traj_noise_file);
+    // std::vector<Eigen::VectorXd> traj_noise = planner_pointer->construct_trajectory(sol, x_goals, true);
+    // std::string traj_noise_file = "outputs/" + planner_pointer->planner_name + "_" + ode_pointer->ode_name + "_env" + std::to_string(env) + "_trajnoise.csv";
+    // HELPER::write_traj_to_csv(traj_noise, traj_noise_file);
 }
 
 
@@ -131,7 +131,7 @@ void plan_AO(){
             HELPER::write_traj_to_csv(sol, sol_file);
 
             // Construct and write trajectory
-            std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol); // HELPER::log_trajectory(traj);
+            std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol, x_goals); // HELPER::log_trajectory(traj);
             std::string traj_file = "outputs/" + planner_pointer->planner_name + "_" 
                                     + ode_pointer->ode_name + "_env" + std::to_string(env)
                                     + "_cost:" + HELPER::doubleToString(cost) + "_traj.csv";

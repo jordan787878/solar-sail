@@ -30,6 +30,11 @@ Eigen::VectorXd OdeInvertPendulum::get_dxdt(const double &t,
 }
 
 
+Eigen::VectorXd OdeInvertPendulum::state_post_process(const Eigen::VectorXd& s){
+    return s;
+}
+
+
 bool OdeInvertPendulum::is_out_of_domain(const Eigen::VectorXd& s){
 
     // [TEMP] write state and control trajectory of hybrid automaton
@@ -82,6 +87,14 @@ bool OdeInvertPendulum::is_goals(const Eigen::VectorXd& s, const std::vector<Eig
         }
     }
     return true;
+}
+
+
+std::tuple<Eigen::MatrixXd, Eigen::MatrixXd> OdeInvertPendulum::get_linear_dynamics_matrices(
+                                        const Eigen::VectorXd& x, 
+                                        const Eigen::VectorXd& u, 
+                                        double delta_time){
+
 }
 
 

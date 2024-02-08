@@ -89,7 +89,7 @@ void plan(){
     HELPER::write_traj_to_csv(sol, sol_file);
 
     // Construct and write trajectory
-    std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol); // HELPER::log_trajectory(traj);
+    std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol, x_goals); // HELPER::log_trajectory(traj);
     std::string traj_file = "outputs/" + planner_pointer->planner_name + "_" 
                             + ode_pointer->ode_name + "_traj.csv";
     HELPER::write_traj_to_csv(traj, traj_file);
@@ -120,7 +120,7 @@ void plan_AO(){
             HELPER::write_traj_to_csv(sol, sol_file);
 
             // Construct and write trajectory
-            std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol); // HELPER::log_trajectory(traj);
+            std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol, x_goals); // HELPER::log_trajectory(traj);
             std::string traj_file = "outputs/" + planner_pointer->planner_name + "_" 
                                     + ode_pointer->ode_name + "_cost:" + HELPER::doubleToString(cost) + "_traj.csv";
             HELPER::write_traj_to_csv(traj, traj_file);

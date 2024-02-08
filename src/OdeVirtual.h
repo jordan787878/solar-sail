@@ -5,6 +5,7 @@
 #include <Eigen/Dense>
 #include <vector>
 #include <map>
+#include <tuple>
 
 class OdeVirtual{
 	public:
@@ -22,9 +23,14 @@ class OdeVirtual{
 										 const Eigen::VectorXd &u, 
 										 bool is_process_noise=false,
 										 const int mode=0) = 0;
+		virtual Eigen::VectorXd state_post_process(const Eigen::VectorXd& s) = 0;
 		virtual bool is_out_of_domain(const Eigen::VectorXd& s) = 0;
 		virtual bool is_in_unsafe(const Eigen::VectorXd& s) = 0;
 		virtual bool is_goals(const Eigen::VectorXd& s, const std::vector<Eigen::VectorXd> goals) = 0;
+		virtual std::tuple<Eigen::MatrixXd, Eigen::MatrixXd> get_linear_dynamics_matrices(
+               										const Eigen::VectorXd& x, 
+													const Eigen::VectorXd& u, 
+													double delta_time) = 0;
 
 	protected:
 		Eigen::VectorXd generateRandomVector(const Eigen::VectorXd& mean, const Eigen::MatrixXd& covariance);

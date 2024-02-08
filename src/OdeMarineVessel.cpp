@@ -18,6 +18,12 @@ Eigen::VectorXd OdeMarineVessel::get_dxdt(const double &t,
     return dxdt;
 }
 
+
+Eigen::VectorXd OdeMarineVessel::state_post_process(const Eigen::VectorXd& s){
+    return s;
+}
+
+
 void OdeMarineVessel::set_domain(const Eigen::VectorXd x_min_values, const Eigen::VectorXd x_max_values,
                                  const Eigen::VectorXd u_min_values, const Eigen::VectorXd u_max_values){
     x_min = x_min_values;
@@ -71,6 +77,14 @@ bool OdeMarineVessel::is_goals(const Eigen::VectorXd& s, const std::vector<Eigen
         }
     }
     return true;
+}
+
+
+std::tuple<Eigen::MatrixXd, Eigen::MatrixXd> OdeMarineVessel::get_linear_dynamics_matrices(
+                                        const Eigen::VectorXd& x, 
+                                        const Eigen::VectorXd& u, 
+                                        double delta_time){
+
 }
 
 
