@@ -12,6 +12,11 @@ Eigen::VectorXd OdeSimpleExample::get_dxdt(const double &t,
 }
 
 
+Eigen::VectorXd OdeSimpleExample::state_post_process(const Eigen::VectorXd& s){
+    return s;
+}
+
+
 bool OdeSimpleExample::is_out_of_domain(const Eigen::VectorXd& s){
     return false;
 }
@@ -24,4 +29,12 @@ bool OdeSimpleExample::is_in_unsafe(const Eigen::VectorXd& s){
 
 bool OdeSimpleExample::is_goals(const Eigen::VectorXd& s, const std::vector<Eigen::VectorXd> goals){
     return false;
+}
+
+
+std::tuple<Eigen::MatrixXd, Eigen::MatrixXd> OdeSimpleExample::get_linear_dynamics_matrices(
+                                        const Eigen::VectorXd& x, 
+                                        const Eigen::VectorXd& u, 
+                                        double delta_time){
+
 }

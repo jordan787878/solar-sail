@@ -70,13 +70,24 @@ std::vector<Eigen::VectorXd> SetRRT::construct_trajectory(const std::vector<Eige
                                         time_of_control, 
                                         x_goals, 
                                         is_process_noise);
+            x = traj_segment.back();
+
+            // write to trajectory data (state, control)
+            for(auto& x_k : traj_segment){
+                Eigen::VectorXd x_k_holder = x_k;
+                x_k.conservativeResize(x.size()+u.size());
+                x_k << x_k_holder, u;
+            }
+            if(!trajectory.empty()){
+                trajectory.pop_back();
+            }
             trajectory.insert(trajectory.end(), traj_segment.begin(), traj_segment.end());
-            x = trajectory.back();
         }
         else{
-            std::cout << "goal state (sim): "; print_eigen_vector(x); std::cout << "\n";
-            double traj_sol_difference = (x - solution[i].head(size_x)).norm();
-            std::cout << "difference between trajectory and solution: " << traj_sol_difference << "\n";
+            std::cout << "goal state (sol): "; print_eigen_vector(solution[solution.size()-1]);
+            std::cout << "goal state (sim): "; print_eigen_vector(x);
+            // double traj_sol_difference = (x - solution[i].head(size_x)).norm();
+            // std::cout << "difference between trajectory and solution: " << traj_sol_difference << "\n";
         }
     }
     return trajectory;
@@ -115,12 +126,17 @@ Eigen::VectorXd SetRRT::get_control_sample(const Eigen::VectorXd u_min, const Ei
     Eigen::VectorXd u(size_u);
     for(int i=0; i<size_u; i++){
         if(i == size_u-1){
+            // control duration
             int N = int(u_max[i]/u_min[i]);
             u[i] = getRandomIntBounded(0, N) * u_min[i];
         }
         else{
+            // control signal
             double step = (u_max[i] - u_min[i])/(control_resolution);
             u[i] = getRandomIntBounded(0, control_resolution)*step + u_min[i];
+            // TEMP (round to 2 digits)
+            double multiplier = std::pow(10.0, 2);
+            u[i] = std::round(u[i] * multiplier) / multiplier;
         }
     }
     return u;

@@ -40,6 +40,10 @@ Eigen::VectorXd OdeSolarsail::get_dxdt(const double &t,
     return dxdt;
 }
 
+Eigen::VectorXd OdeSolarsail::state_post_process(const Eigen::VectorXd& s){
+    return s;
+}
+
 
 bool OdeSolarsail::is_out_of_domain(const Eigen::VectorXd& s){
     const int size_x = s.size();
@@ -82,6 +86,14 @@ bool OdeSolarsail::is_goals(const Eigen::VectorXd& s, const std::vector<Eigen::V
         }
     }
     return false;
+}
+
+
+std::tuple<Eigen::MatrixXd, Eigen::MatrixXd> OdeSolarsail::get_linear_dynamics_matrices(
+                                        const Eigen::VectorXd& x, 
+                                        const Eigen::VectorXd& u, 
+                                        double delta_time){
+
 }
 
 

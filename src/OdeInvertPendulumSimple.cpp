@@ -1,4 +1,5 @@
 #include "OdeInvertPendulumSimple.h"
+#include <unsupported/Eigen/MatrixFunctions> // matrix operation
 
 // NOTES
 // 2. for the III initial condition, the current controller cannot work becuase of ZERO w.
@@ -31,6 +32,15 @@ Eigen::VectorXd OdeInvertPendulumSimple::get_dxdt(const double &t,
     }
 
     return dxdt;
+}
+
+
+Eigen::VectorXd OdeInvertPendulumSimple::state_post_process(const Eigen::VectorXd& s){
+    const int size = s.size();
+    Eigen::VectorXd s_process(size);
+    double s0_to_pi = wrapToPi(s[0]);
+    s_process << s0_to_pi, s[1], s[2], s[3];
+    return s_process;
 }
 
 
@@ -76,7 +86,7 @@ bool OdeInvertPendulumSimple::is_goals(const Eigen::VectorXd& s, const std::vect
 
     const int size = goals.size();
     for(int i=0; i<size; i++){
-        double x1 = wrapToPi(s[0]);
+        double x1 = s[0];
         double x2 = s[1];
         double x3 = s[2];
         double x4 = s[3];
@@ -111,7 +121,7 @@ void OdeInvertPendulumSimple::set_domain(const Eigen::VectorXd x_min_values, con
 
 
 bool OdeInvertPendulumSimple::is_delta_neighbor(const Eigen::VectorXd& x, const double delta){
-    double norm = sqrt( wrapToPi(x[0])*wrapToPi(x[0]) + x[1]*x[1] );
+    double norm = sqrt( x[0]*x[0] + x[1]*x[1] );
     // std::cout << "[DEBUG] " << norm << " " << delta << "\n";
     if(norm <= delta){
         return true;
@@ -132,6 +142,35 @@ void OdeInvertPendulumSimple::set_process_noise(const Eigen::VectorXd mean, cons
     process_mean = mean;
     process_covariance = cov;
 }
+
+
+std::tuple<Eigen::MatrixXd, Eigen::MatrixXd> OdeInvertPendulumSimple::get_linear_dynamics_matrices(
+    const Eigen::VectorXd& x,
+    const Eigen::VectorXd& u,
+    const double delta_time){
+
+    double x1 = x[0];
+    double u1 = u[0];
+
+    Eigen::MatrixXd A(4,4);
+    Eigen::MatrixXd B(4,1);
+    A << 0.0, 1.0, 0.0, 0.0,
+         cos(x1)+u1*sin(x1), 0.0, 0.0, 0.0,
+         0.0, 0.0, 0.0, 1.0,
+         0.0, 0.0, 0.0, 0.0;
+    
+    B << 0.0, 
+         -cos(x1),
+         0.0,
+         1.0;
+
+    Eigen::MatrixXd F = (delta_time*A).exp();
+
+    Eigen::MatrixXd G = delta_time*B;
+    
+    return std::make_tuple(F,G);
+}
+
 
 // void OdeMarineVessel::set_unsafecircles(const double dimension, 
 //                                      const std::vector<Eigen::VectorXd> center, 
