@@ -142,12 +142,13 @@ bool solveRiccatiIterationD(const Eigen::MatrixXd &Ad,
 }
 
 double angleDifference(const double& angleA, const double& angleB){
-    std::complex<double> a(cos(angleA), sin(angleA));
-    std::complex<double> b(cos(angleB), sin(angleB));
-    double angle_a = std::arg(a);
-    double angle_b = std::arg(b);
-    double diff = angle_a - angle_b;
-
+    // std::complex<double> a(cos(angleA), sin(angleA));
+    // std::complex<double> b(cos(angleB), sin(angleB));
+    // double angle_a = std::arg(a);
+    // double angle_b = std::arg(b);
+    // std::cout << "[DEBUG] " << angle_a << "\t" << angle_b << "\n";
+    
+    double diff = angleA - angleB;
     // Adjust difference to the range [-pi, pi]
     while (diff > M_PI)
         diff -= 2 * M_PI;
