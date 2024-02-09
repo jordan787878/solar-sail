@@ -363,10 +363,11 @@ void control_lqr(){
 
             Eigen::VectorXd delta_u_lqr = -K*(state_error);
             std::cout << "delta u lqr: "; HELPER::log_vector(delta_u_lqr);
-            u_online = u_online + delta_u_lqr; 
+            
             // NOTE: this u_online can grow out of bound
             // (1) bound u_online to feasible control domain
             // of (2) bound the state error (Referenence Governer)
+            u_online = u_online + delta_u_lqr; 
             u_online = u_online.cwiseMax(-Eigen::VectorXd::Ones(u_online.size()))
                                 .cwiseMin(Eigen::VectorXd::Ones(u_online.size()));
         }
@@ -407,7 +408,7 @@ int main(){
 
     std::cout << "[in docker develop env]\n";
 
-    // plan();
+    plan();
 
     // plan_ao();
 
