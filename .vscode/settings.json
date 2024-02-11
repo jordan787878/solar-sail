@@ -58,6 +58,7 @@
         "valarray": "cpp",
         "__tree": "cpp",
         "map": "cpp",
-        "thread": "cpp"
+        "thread": "cpp",
+        "__memory": "cpp"
     }
 }

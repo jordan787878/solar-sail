@@ -7,17 +7,20 @@ RUN apt-get update && apt-get install -y \
     cmake \
     libeigen3-dev
 
+RUN rm -rf build && mkdir build
+
+CMD ["bash"]
+
 # Set the working directory
-WORKDIR /app
+#WORKDIR /app
 
 # Copy the C++ project files into the container
-COPY . .
+# COPY . .
 
 # Build your C++ project
-RUN mkdir outputs
-RUN rm -rf build && mkdir build && cd build && cmake .. && make
-
+# RUN mkdir outputs
+# RUN rm -rf build && mkdir build && cd build && cmake .. && make
 
 # Specify the default command to run when the container starts
-CMD ["./build/bin/test_main"]
+# CMD ["./build/bin/test_main"]
 
