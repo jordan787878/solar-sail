@@ -133,12 +133,47 @@ bool solveRiccatiIterationD(const Eigen::MatrixXd &Ad,
     diff = fabs((P_next - P).maxCoeff());
     P = P_next;
     if (diff < tolerance) {
-      // std::cout << "iteration mumber = " << i << std::endl;
+      std::cout << "iteration mumber = " << i << std::endl;
+      log_matrix(P);
       return true;
     }
   }
   return false; // over iteration limit
 }
+
+
+// source: https://scicomp.stackexchange.com/questions/30757/discrete-time-algebraic-riccati-equation-dare-solver-in-c
+bool solveRiccatiIterationD2(const Eigen::MatrixXd &Ad,
+                            const Eigen::MatrixXd &Bd, const Eigen::MatrixXd &Q,
+                            const Eigen::MatrixXd &R, Eigen::MatrixXd &P,
+                            const double &tolerance = 1.E-5,
+                            const uint iter_max = 100000) {
+  P = Q; // initialize
+
+  Eigen::MatrixXd A = Ad;
+  Eigen::MatrixXd G = Bd*(R.inverse())*Bd.transpose();
+  Eigen::MatrixXd H = Q;
+  Eigen::MatrixXd I = Eigen::MatrixXd::Identity(Ad.rows(), Ad.rows());
+
+  double diff;
+  for (uint i = 0; i < iter_max; ++i) {
+    // -- discrete solver --
+    Eigen::MatrixXd A_new = A*((I+G*H).inverse())*A;
+    Eigen::MatrixXd G_new = G + A*((I+G*H).inverse())*G*A.transpose();
+    Eigen::MatrixXd H_new = H + A.transpose() * H * ((I+G*H).inverse()) * A;
+
+    diff = (H_new - H).norm() / H_new.norm();
+    if (diff < tolerance) {
+      std::cout << "iteration mumber = " << i << std::endl;
+      P = H_new;
+      log_matrix(P);
+      return true;
+    }
+    A = A_new; G = G_new; H = H_new;
+  }
+  return false; // over iteration limit
+}
+
 
 double angleDifference(const double& angleA, const double& angleB){
     // std::complex<double> a(cos(angleA), sin(angleA));

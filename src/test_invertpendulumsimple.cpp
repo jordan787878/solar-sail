@@ -484,10 +484,11 @@ void control_motionplanner_and_lqr(){
         Eigen::VectorXd u_online = u_ref;
         auto [F, G] = ode_pointer->get_linear_dynamics_matrices(x_ref, u_ref, time_control_update);
         // HELPER::log_matrix(F); HELPER::log_matrix(G);
-        bool lqr_solved = HELPER::solveRiccatiIterationD(F, G, Q, R, P);
+        // bool lqr_solved = HELPER::solveRiccatiIterationD(F, G, Q, R, P);  // first dlqr solver
+        bool lqr_solved = HELPER::solveRiccatiIterationD2(F, G, Q, R, P);    // second dlqr solver
         if(lqr_solved){
             // HELPER::log_matrix(P);
-            Eigen::MatrixXd K = (R+G.transpose()*P*G).inverse()*G.transpose()*P*F;
+            Eigen::MatrixXd K = ((R+G.transpose()*P*G).inverse())*(G.transpose()*P*F);
             std::cout << "K: "; HELPER::log_matrix(K);
             Eigen::VectorXd state_error(size_x);
             double angle_diff = HELPER::angleDifference(x[0], x_ref[0]);
