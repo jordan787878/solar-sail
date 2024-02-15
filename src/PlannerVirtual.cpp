@@ -1,6 +1,11 @@
 #include "PlannerVirtual.h"
 #include<random>
 
+void PlannerVirtual::set_size_state_and_control(){
+    size_x = ode_solver_pointer->ode_pointer->x_min.size();
+    size_u = ode_solver_pointer->ode_pointer->u_min.size();
+}
+
 
 void PlannerVirtual::set_cost_threshold(double threshold){
     cost_threshold = threshold;

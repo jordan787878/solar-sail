@@ -24,6 +24,7 @@ class PlannerVirtual{
                                                                   const std::vector<Eigen::VectorXd> x_goals={},
                                                                   bool is_process_noise=false) = 0;
         virtual double get_cost() = 0;
+        void set_size_state_and_control();
         void set_cost_threshold(double);
         void set_plan_time_max(double);
         bool exceed_plan_time_max(std::chrono::time_point<std::chrono::high_resolution_clock>);
