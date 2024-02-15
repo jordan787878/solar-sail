@@ -80,6 +80,7 @@ bool OdeSolarsail::is_goals(const Eigen::VectorXd& s, const std::vector<Eigen::V
     for(const auto& goal : goals){
         Eigen::VectorXd delta_pos = s.head(3) - goal.head(3);
         double distance = unit_length * delta_pos.norm();
+        // std::cout << "[DEBUG] distance: " << distance << " goal distance: " << r_ast << "\n";
         // if(distance < r_ast * 2){ std::cout << "distance: " << distance << "\n"; }
         if(distance <= r_ast){
             return true;
@@ -93,7 +94,11 @@ std::tuple<Eigen::MatrixXd, Eigen::MatrixXd> OdeSolarsail::get_linear_dynamics_m
                                         const Eigen::VectorXd& x, 
                                         const Eigen::VectorXd& u, 
                                         double delta_time){
-
+    const int size_x = x.size();
+    const int size_u = u.size();
+    Eigen::MatrixXd F(size_x, size_x);
+    Eigen::MatrixXd G(size_x, size_u);
+    return std::make_tuple(F, G);
 }
 
 

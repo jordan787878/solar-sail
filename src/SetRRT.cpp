@@ -56,6 +56,7 @@ std::vector<Eigen::VectorXd> SetRRT::construct_trajectory(const std::vector<Eige
     for(int i=0; i<size_x; i++){
         x[i] = row0[i];
     }
+
     for(int i=0; i<solution.size(); i++){
         if(i < solution.size()-1){
             Eigen::VectorXd sol_i = solution[i];
@@ -112,9 +113,6 @@ void SetRRT::init_plan(const Eigen::VectorXd& x_init){
     nodes.clear();
     node_to_state.clear();
     node_to_cost.clear();
-    size_x = ode_solver_pointer->ode_pointer->x_min.size();
-    size_u = ode_solver_pointer->ode_pointer->u_min.size();
-
     nodes.push_back(0);
     node_to_state[0] = x_init;
     node_to_cost[0] = 0.0;
@@ -223,7 +221,7 @@ std::vector<Eigen::VectorXd> SetRRT::construct_solution(){
         Eigen::VectorXd sol(size_x + size_u + 1);
         Eigen::VectorXd state = node_to_state[n];
         sol.head(size_x) = state;
-        Eigen::VectorXd control(size_u);
+        Eigen::VectorXd control = Eigen::VectorXd::Zero(size_u);
         if(n != nodes.size()-1){
             std::pair<int, int> edge(n, n_next);
             control = edge_to_control[edge];

@@ -120,6 +120,8 @@ Secondly, we compare the results of (Purple) only motion planner, (Red) motion p
   </tr>
 </table>
 
+Note, however, that this approach does not guarantee to satify the control goal (state and control within the domain). The below animation shows the same simulation setup, but this time the cart position state exceeds the feasible domain [-2,2].
+
 
 # C++
 

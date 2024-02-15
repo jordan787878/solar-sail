@@ -51,7 +51,6 @@ void log_matrix(const Eigen::MatrixXd& mat){
         }
         std::cout << std::endl;
     }
-    std::cout << std::endl;
 }
 
 
@@ -61,7 +60,7 @@ void write_traj_to_csv(const std::vector<Eigen::VectorXd>& data, const std::stri
         std::cerr << "Error opening the file for writing." << std::endl;
     }
     // Set a high precision for the output stream
-    // outputFile << std::fixed << std::setprecision(std::numeric_limits<double>::max_digits10);
+    outputFile << std::fixed << std::setprecision(std::numeric_limits<double>::max_digits10);
     for (const auto& vectorData : data) {
         for (int i = 0; i < vectorData.size(); ++i) {
             outputFile << vectorData(i);
