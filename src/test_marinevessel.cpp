@@ -59,6 +59,7 @@ std::tuple<OdeVirtual* , PlannerVirtual*, Eigen::VectorXd, std::vector<Eigen::Ve
     SetRRT* planner_pointer = new SetRRT("SetRRT");
     planner_pointer->link_ode_solver_pointer(ode_solver_ptr);
     planner_pointer->control_resolution = 100.0;
+    planner_pointer->set_size_state_and_control();
 
     // Define Goals
     std::vector<Eigen::VectorXd> x_goals;

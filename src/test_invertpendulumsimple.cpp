@@ -32,7 +32,7 @@ std::tuple<OdeVirtual* , PlannerVirtual*, Eigen::VectorXd, std::vector<Eigen::Ve
     // ode_marine_vessel.set_unsafecircles(2, CONFIG_MARINE_VESSEL::get_random_unsafe_centers(15, 0, 10), 
     //                                        CONFIG_MARINE_VESSEL::get_random_unsafe_raidus(15, 0.25, 0.5));
     Eigen::VectorXd process_mean(2);  process_mean << 0.0, 0.0;
-    Eigen::MatrixXd process_cov(2,2); process_cov  << 1.0, 0.0,
+    Eigen::MatrixXd process_cov(2,2); process_cov  << 0.1, 0.0,
                                                       0.0, 0.0;
     ode_pointer->set_process_noise(process_mean, process_cov);
 
@@ -64,6 +64,7 @@ std::tuple<OdeVirtual* , PlannerVirtual*, Eigen::VectorXd, std::vector<Eigen::Ve
     SetRRT* planner_pointer = new SetRRT("SetRRT");
     planner_pointer->control_resolution = 100.0;
     planner_pointer->link_ode_solver_pointer(ode_solver_ptr);
+    planner_pointer->set_size_state_and_control();
 
     // Define Goals
     std::vector<Eigen::VectorXd> x_goals; // (theta, w, x, v)
@@ -74,6 +75,44 @@ std::tuple<OdeVirtual* , PlannerVirtual*, Eigen::VectorXd, std::vector<Eigen::Ve
     HELPER::write_traj_to_csv(x_goals, goals_file);
 
     return std::make_tuple(ode_pointer, planner_pointer, x_start, x_goals);
+}
+
+// 1-step sub-planning problem solver
+Eigen::VectorXd one_step_planning(const Eigen::VectorXd& x_start, const Eigen::VectorXd x_goal, double time_control_update){
+    // Define ode
+    OdeInvertPendulumSimple* ode_pointer = new OdeInvertPendulumSimple("InvertPendulumSimple");
+    const int size_x = 4;
+    const int size_u = 2;
+
+    // [Unimplemented] Compute domain
+    // Eigen::VectorXd x_min(size_x); x_min << std::min(x_start[0], x_goal[0])
+    // Eigen::VectorXd x_max(size_x); x_max << std::max(x_start[0], x_goal[0])
+    // Eigen::VectorXd u_min(size_u); u_min << -1.0, 0.1; 
+    // Eigen::VectorXd u_max(size_u); u_max << 1.0,  0.1;
+    // ode_pointer->set_domain(x_min, x_max, u_min, u_max);
+
+    // Define ode solver
+    const double time_integration = 1e-2;
+    OdeSolver* ode_solver_ptr = new OdeSolver(time_integration);
+    ode_solver_ptr->link_ode_pointer(ode_pointer);
+
+    Eigen::VectorXd us(11); us << -1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0;
+
+    double cost_min = 999.9;
+    Eigen::VectorXd u_min;
+
+    for(const auto& u : us){
+        Eigen::VectorXd u_i(1); u_i << u;
+        std::vector<Eigen::VectorXd> sol = ode_solver_ptr->solver_runge_kutta(x_start, u_i, time_integration, time_control_update);
+        if(!sol.empty()){
+            double cost = (sol.back() - x_goal).norm();
+            if(cost < cost_min){
+                cost_min = cost;
+                u_min = u_i;
+            }
+        }
+    }
+    return u_min;
 }
     
 
@@ -278,7 +317,7 @@ void replan_adaptupdate_realtime(){
 
 void control_lqr(){
     const int size_x = 4;
-    const int size_u = 2; // (control inputs, time_duration)
+    const int size_u = 2; // (control inputs and time_duration)
 
     auto [ode_pointer, planner_pointer, x_start, x_goals] = define_problem();    
     std::cout << "ode: " << ode_pointer->ode_name << "\n";
@@ -388,9 +427,9 @@ void control_motionplanner_and_lqr(){
 
     // A. directly read trajectiory
     std::string trajectory_file;
-    trajectory_file = "outputs/SetRRT_InvertPendulumSimple_cost:12.10_traj.csv";
+    trajectory_file = "outputs/SetRRT_InvertPendulumSimple_cost:11.30_traj.csv";
     std::vector<Eigen::VectorXd> traj = HELPER::read_csv_data(trajectory_file);
-    // // B. Plan
+    // B. Plan
     // std::vector<Eigen::VectorXd> sol = planner_pointer->plan(x_start, x_goals);
     // double cost = planner_pointer->get_cost();
     // std::cout << "[DEBUG] cost: " << cost << "\n";
@@ -402,7 +441,7 @@ void control_motionplanner_and_lqr(){
     // std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol, x_goals);
     // std::string traj_file = "outputs/" + planner_pointer->planner_name + "_" 
     //                         + ode_pointer->ode_name + "_traj.csv";
-    // HELPER::write_traj_to_csv(traj, traj_file); // HELPER::log_trajectory(traj);
+    // HELPER::write_traj_to_csv(traj, traj_file);
 
     
     // Compute linear dynamics
@@ -413,9 +452,10 @@ void control_motionplanner_and_lqr(){
     Q(0,0) = 1.0; Q(1,1) = 1.0; Q(2,2) = 1.0; Q(3,3) = 1.0;
     R(0,0) = 10.0;
 
-    // Compute nominal control trajecotory
+    // Compute nominal control trajecotory (time_control_update, time_integration)
+    int number_data_per_control_update = int(time_control_update/planner_pointer->ode_solver_pointer->time_integration);
     std::vector<Eigen::VectorXd> traj_nominal;
-    for(int i=0; i<traj.size(); i+=10){
+    for(int i=0; i<traj.size(); i+=number_data_per_control_update){
         traj_nominal.push_back(traj[i]);
     }
 
@@ -426,7 +466,7 @@ void control_motionplanner_and_lqr(){
     bool is_process_noise = true;
 
     for(int i=0; i<traj_nominal.size()+time_elong; i++){
-        std::cout << "state: "; HELPER::log_vector(x); // real state
+        std::cout << "== state: "; HELPER::log_vector(x); // real state
 
         // Select x_u ref
         Eigen::VectorXd x_u;
@@ -438,21 +478,18 @@ void control_motionplanner_and_lqr(){
             x_u = 0.0 * traj_nominal[0];
         }
         Eigen::VectorXd x_ref = x_u.segment(0,size_x); //std::cout << "x ref: "; HELPER::log_vector(x_ref);
-        Eigen::VectorXd u_ref = x_u.segment(size_x,size_u-1); //std::cout << "u ref: "; HELPER::log_vector(u_ref);
+        Eigen::VectorXd u_ref = x_u.segment(size_x,size_u-1); std::cout << "u ref: "; HELPER::log_vector(u_ref);
 
         // Compute u_online
         Eigen::VectorXd u_online = u_ref;
         auto [F, G] = ode_pointer->get_linear_dynamics_matrices(x_ref, u_ref, time_control_update);
         // HELPER::log_matrix(F); HELPER::log_matrix(G);
-        bool lqr_solved = HELPER::solveRiccatiIterationD(F, G, Q, R, P);
+        // bool lqr_solved = HELPER::solveRiccatiIterationD(F, G, Q, R, P);  // first dlqr solver
+        bool lqr_solved = HELPER::solveRiccatiIterationD2(F, G, Q, R, P);    // second dlqr solver
         if(lqr_solved){
             // HELPER::log_matrix(P);
-            Eigen::MatrixXd K = (R+G.transpose()*P*G).inverse()*G.transpose()*P*F;
-            // std::cout << "K: "; HELPER::log_matrix(K);
-
-            // State error: NOTE: this is the problem now. (When process noise exists)
-            // consider that x_ref is pi, and x is -pi. In physics, thesea are the same angle,
-            // but in math, these are two different angle...
+            Eigen::MatrixXd K = ((R+G.transpose()*P*G).inverse())*(G.transpose()*P*F);
+            std::cout << "K: "; HELPER::log_matrix(K);
             Eigen::VectorXd state_error(size_x);
             double angle_diff = HELPER::angleDifference(x[0], x_ref[0]);
             state_error << angle_diff, x[1]-x_ref[1], x[2]-x_ref[2], x[3]-x_ref[3];                    
@@ -467,8 +504,12 @@ void control_motionplanner_and_lqr(){
             u_online = u_online + delta_u_lqr; 
             u_online = u_online.cwiseMax(-Eigen::VectorXd::Ones(u_online.size()))
                                 .cwiseMin(Eigen::VectorXd::Ones(u_online.size()));
+
+            // testing online motion planner
+            // Eigen::VectorXd u_onestep = one_step_planning(x, x_ref_onestep, time_control_update);
+            // std::cout << "u onestep: "; HELPER::log_vector(u_onestep);
         }
-        std::cout << "u online: "; HELPER::log_vector(u_online);
+        std::cout << "u online (MP+LQR): "; HELPER::log_vector(u_online);
 
 
         //Execute with noise
@@ -494,7 +535,7 @@ void control_motionplanner_and_lqr(){
         traj_runtime.insert(traj_runtime.end(), traj_segment.begin(), traj_segment.end());
     }
     std::string traj_runtime_file = "outputs/" + planner_pointer->planner_name + "_" 
-                            + ode_pointer->ode_name + "_noise_traj(lqr).csv";
+                            + ode_pointer->ode_name + "_noise_traj(mp+lqr).csv";
     HELPER::write_traj_to_csv(traj_runtime, traj_runtime_file); // HELPER::log_trajectory(traj);
 
 }
@@ -513,9 +554,9 @@ int main(){
 
     // replan_adaptupdate_realtime();
 
-    control_lqr();
+    // control_lqr();
 
-    // control_motionplanner_and_lqr();
+    control_motionplanner_and_lqr();
 
     return 0;
 }

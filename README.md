@@ -103,6 +103,7 @@ The cost measure is the total time of the controlled trajectory. We can obtain a
 </table>
 
 # Run-Time Control with Uncertainty
+## Motion Planner and online LQR update
 Consider now the system is influenced by process noise. We employ a LQR control to update the control signals of the motion planner in run-time:
 $u_{\text{online}} = u_{\text{planner}} + \delta u_{\text{LQR}}$, where $\delta u_{\text{LQR}} = -K \delta x$.
 The gain $K$ is computed by solving the dicrete-time algebraic Riccati equations. 
@@ -119,6 +120,10 @@ Secondly, we compare the results of (Purple) only motion planner, (Red) motion p
    <td>Orange: only LQR. Red: motion planner + LQR update <img src="https://github.com/jordan787878/solar-sail/assets/17584164/a6cd6628-52ac-4a5c-9881-80d069d0d1f9" alt="Image 2" style="width: 500px; height: 400px;"></td>
   </tr>
 </table>
+
+Note, however, that this approach **does not guarantee** to satify the control goal (state and control within the domain). The below animation shows the same simulation setup, but this time the cart position state exceeds the feasible domain [-2,2]. This motivates other approaches.
+
+https://github.com/jordan787878/solar-sail/assets/17584164/d12204ce-6088-48aa-a851-36fea784a05d
 
 
 # C++
