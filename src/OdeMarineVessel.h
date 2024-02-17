@@ -36,5 +36,7 @@ public:
     void set_unsafecircles(const double dimension, const std::vector<Eigen::VectorXd> center, const std::vector<double> radius);
 
     std::vector<Eigen::VectorXd> output_unsafecircles();
+
+    void set_process_noise(const Eigen::VectorXd mean, const Eigen::MatrixXd cov);
                     
 };

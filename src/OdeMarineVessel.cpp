@@ -15,6 +15,15 @@ Eigen::VectorXd OdeMarineVessel::get_dxdt(const double &t,
     dxdt[0] = u1*cos(x3) - u2*sin(x3);
     dxdt[1] = u1*sin(x3) + u2*cos(x3);
     dxdt[2] = u3;
+
+    if(is_process_noise){
+        // std::cout << "use process noise\n";
+        Eigen::VectorXd process_noise = generateRandomVector(process_mean, process_covariance);
+        for(int i=0; i<process_noise.size(); i++){
+            dxdt[i] = dxdt[i] + process_noise[i]; // std::cout << process_noise[i] << " ";
+        } // std::cout << "\n";
+    }
+
     return dxdt;
 }
 
@@ -40,6 +49,7 @@ bool OdeMarineVessel::is_out_of_domain(const Eigen::VectorXd& s){
     const int size_x = s.size();
     for(int i=0; i<size_x; i++){
         if(s[i] < x_min[i] || s[i] > x_max[i]){
+            // std::cout << s[i] << " " << x_min[i] << " " << x_max[i] << "\n";
             return true;
         }
     }
@@ -73,6 +83,7 @@ bool OdeMarineVessel::is_goals(const Eigen::VectorXd& s, const std::vector<Eigen
     const int size = goals.size();
     for(int i=0; i<size; i++){
         if(s[i] < goals[i][0] || s[i] > goals[i][1]){
+            // std::cout << "[DEBUG] " << i << " " << s[i] << " " << goals[i][0] << " " << goals[i][1] << "\n";
             return false;
         }
     }
@@ -111,4 +122,10 @@ std::vector<Eigen::VectorXd> OdeMarineVessel::output_unsafecircles(){
         data.push_back(row);
     }
     return data;
+}
+
+
+void OdeMarineVessel::set_process_noise(const Eigen::VectorXd mean, const Eigen::MatrixXd cov){
+    process_mean = mean;
+    process_covariance = cov;
 }
