@@ -56,6 +56,7 @@ add_executable(test_marinevessel
 	src/PlannerVirtual.cpp
 	src/Graph.cpp
 	src/SetRRT.cpp
+	src/MDP.cpp
 )
 add_executable(test_invertpendulum
 	src/test_invertpendulum.cpp
