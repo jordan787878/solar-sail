@@ -283,40 +283,89 @@ void control_mdp(){
 
     // Define the problem
     auto [ode_pointer, planner_pointer, x_start, x_goals] = define_problem();
+    std::vector<Eigen::VectorXd> sol_optimal;
 
-    // Plan
-    std::vector<Eigen::VectorXd> sol = planner_pointer->plan(x_start, x_goals);
-    HELPER::log_trajectory(sol);
+    // Plan AO
+    double plan_time_max = 10.0;
+    int N_run = 6;
+    planner_pointer->set_plan_time_max(plan_time_max);
+    for(int i=0; i<N_run; i++){
+        std::vector<Eigen::VectorXd> sol = planner_pointer->plan(x_start, x_goals);
+
+        if(planner_pointer->is_success){
+            double cost = planner_pointer->get_cost();
+            std::cout << "[DEBUG] cost: " << cost << "\n";
+            planner_pointer->set_cost_threshold(cost);
+            std::cout << "[DEBUG] update cost threshold\n";
+            HELPER::log_trajectory(sol);
+            sol_optimal.clear();
+            sol_optimal = sol;
+        }
+        else{ // increase plan time max
+            planner_pointer->set_plan_time_max(plan_time_max);
+        }
+    }
+
+    // Write solution
+    HELPER::log_trajectory(sol_optimal);
     std::string sol_file = "outputs/" + planner_pointer->planner_name + "_" 
                            + ode_pointer->ode_name + "_sol.csv";
-    HELPER::write_traj_to_csv(sol, sol_file);
+    HELPER::write_traj_to_csv(sol_optimal, sol_file);
 
     // Construct reference Trajectory
-    std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol, x_goals);
+    std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol_optimal, x_goals);
     std::string traj_file = "outputs/" + planner_pointer->planner_name + "_" 
                             + ode_pointer->ode_name + "_traj.csv";
     HELPER::write_traj_to_csv(traj, traj_file);
 
-    // Compute nominal control trajecotory (time_control_update, time_integration)
+    // [Obsolete] Compute nominal control trajecotory (time_control_update, time_integration)
     double time_control_update = 1.0;
-    int number_data_per_control_update = int(time_control_update/planner_pointer->ode_solver_pointer->time_integration);
-    std::vector<Eigen::VectorXd> traj_nominal;
-    for(int i=0; i<traj.size(); i+=number_data_per_control_update){
-        traj_nominal.push_back(traj[i]);
-    }
-    HELPER::log_trajectory(traj_nominal);
+    std::vector<Eigen::VectorXd> traj_nominal = traj;
+    // int number_data_per_control_update = int(time_control_update/planner_pointer->ode_solver_pointer->time_integration);
+    // std::vector<Eigen::VectorXd> traj_nominal;
+    // for(int i=0; i<traj.size(); i+=number_data_per_control_update){
+    //     traj_nominal.push_back(traj[i]);
+    // }
+    // HELPER::log_trajectory(traj_nominal);
 
     // Define MDP
-    const int number_per_state  = 50;
-    const int number_per_action = 40;
+    const int number_per_state  = 60;
+    const int number_per_action = 6;
     MDP* mdp_pointer = new MDP(planner_pointer, number_per_state, number_per_action);
     mdp_pointer->x_goals = x_goals;
+
+    // Construct discrete state
     mdp_pointer->construct_discrete_state(traj_nominal);
+
+    // Construct transition
+    mdp_pointer->construct_transition();
+    if(!mdp_pointer->is_set_transitions_success){
+        std::cout << "[ERROR] cannot find transition to goal\n";
+        return;
+    }
+
+    // write discrete state
     std::vector<Eigen::VectorXd> discrete_traj = mdp_pointer->debug_discrete_state(); //HELPER::log_trajectory(discrete_traj);
     std::string discrete_traj_file = "outputs/" + planner_pointer->planner_name + "_" 
                             + ode_pointer->ode_name + "_traj(discrete).csv";
     HELPER::write_traj_to_csv(discrete_traj, discrete_traj_file);
+    // write transision
+    std::vector<Eigen::VectorXd> data = mdp_pointer->write_transition();
+    std::string transition_file = "outputs/" + planner_pointer->planner_name + "_" 
+                            + ode_pointer->ode_name + "_transition.csv";
+    HELPER::write_traj_to_csv(data, transition_file);
 
+    // Value iteration
+    mdp_pointer->value_iteration();
+
+    // Control Synthesis
+    mdp_pointer->synthesize_control();
+
+    // // Print out discrete state
+    // for(int i=0; i<mdp_pointer->nodes_Q.size(); i++){
+    //     std::cout << mdp_pointer->nodes_Q[i] << " ";
+    // }
+    // std::cout << "\n";
     // Test feedback control
     // unsigned int node_Q = mdp_pointer->nodes_Q[0];
     // Eigen::VectorXd u = mdp_pointer->discrete_state_to_control[node_Q];
@@ -324,7 +373,7 @@ void control_mdp(){
     // HELPER::log_vector(u);
 
     // Run-time control
-    int time_elong = 1;
+    int time_elong = 10;
     bool is_process_noise = false;
     bool is_check_unsafe = true;
     Eigen::VectorXd x = x_start;
@@ -334,7 +383,12 @@ void control_mdp(){
         // std::cout << "[DEBUG] state: "; HELPER::log_vector(x); // real state
 
         // Compute u_online
-        Eigen::VectorXd u_online = mdp_pointer->get_feedback_control(x);
+        auto [solved, u_online] = mdp_pointer->get_feedback_control(x);
+        if(!solved){
+            std::cout << "[ERROR] state exceeds MDP construction\n";
+            break;
+        }
+        // std::cout << "control: "; HELPER::log_vector(u_online);
 
         //Execute with noise
         std::vector<Eigen::VectorXd> traj_segment;
@@ -353,7 +407,12 @@ void control_mdp(){
         }
         // update
         x = traj_segment.back();
-        // write
+        // write to trajectory data (state, control)
+        for(auto& x_k : traj_segment){
+            Eigen::VectorXd x_k_holder = x_k;
+            x_k.conservativeResize(x.size()+u_online.size());
+            x_k << x_k_holder, u_online;
+        }
         if(!traj_runtime.empty()){
             traj_runtime.pop_back();
         }
