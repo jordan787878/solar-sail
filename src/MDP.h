@@ -6,6 +6,8 @@
 #include <Eigen/Dense>
 #include <map>
 #include <tuple>
+#include <random>
+#include <iomanip>  
 
 class MDP{
     public:
@@ -21,25 +23,31 @@ class MDP{
         Eigen::VectorXd du;
         std::vector<unsigned int> nodes_Q;
         std::map<unsigned int, Eigen::VectorXd> discrete_state_to_control;
-
-        // std::map<std::tuple<unsigned int, unsigned int, unsigned int>, double> trans_prob;
-        // SparseMatrix* sparse_matrix_pointer;
+        std::vector< std::map<unsigned int, double> >* matrix;
+        bool is_set_transitions_success;
+        std::map<unsigned int, bool> map_to_is_goal_node;
+        std::vector<double>* J;
+        double gamma = 0.9;
 
         MDP(PlannerVirtual* pointer, const int n_per_state, const int n_per_action);
 
         void construct_discrete_state(const std::vector<Eigen::VectorXd>& traj);
         std::vector<Eigen::VectorXd> debug_discrete_state();
 
-        Eigen::VectorXd get_feedback_control(const Eigen::VectorXd& s);
+        void construct_transition();
 
-        // [Unimplemented]
-        void construct_mdp();
-        //std::vector<Eigen::VectorXd> write_sparse_matrix();
+        void value_iteration();
+
+        void synthesize_control();
+
+        std::tuple<bool, Eigen::VectorXd> get_feedback_control(const Eigen::VectorXd& s);
+
+        std::vector<Eigen::VectorXd> write_transition();
 
     protected:
-        void construct_trans_prob(unsigned int Nq, unsigned int Nsigma, 
-                                  int number_samples, double time_duration,
-                                  bool is_process_noise, bool is_check_unsafe);
+        void set_transitions(unsigned int n_q, unsigned int n_sigma, 
+                             int number_samples, double time_duration,
+                             bool is_process_noise, bool is_check_unsafe);
 
         std::vector<unsigned int> map_Nq_to_q(const unsigned int& Nq);
         std::vector<unsigned int> map_Nsigma_to_sigma(const unsigned int& Nsigma);
@@ -57,4 +65,11 @@ class MDP{
     private:
         void test_mapping();
         bool is_same_q(const std::vector<unsigned int>& q1, const std::vector<unsigned int>& q2);
+        std::vector<Eigen::VectorXd> get_neighbor_points(const Eigen::VectorXd& x);
+        std::vector<Eigen::VectorXd> get_boader_points(const Eigen::VectorXd& x);
+        double getRandomDouble(double x_min, double x_max);
+        double reward(const unsigned int& i_Nq, const unsigned int& i_Nsigma);
+        void add_Q_neighbors(const std::vector<unsigned int> nodes_Q_pivot);
+
+        void print_J(const std::vector<double>& J);
 };

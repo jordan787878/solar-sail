@@ -1,6 +1,7 @@
 #include "MDP.h"
 #include <cmath>
 #include <limits>
+#include <algorithm>
 
 MDP::MDP(PlannerVirtual* pointer, const int n_per_state, const int n_per_action){
     planner_pointer = pointer;
@@ -36,59 +37,60 @@ void MDP::construct_discrete_state(const std::vector<Eigen::VectorXd>& traj){
         Eigen::VectorXd x = s.head(size_x); //log_vector(x);
         std::vector<unsigned int> q = map_x_to_q(x); //log_vector(q);
         unsigned int Nq = map_q_to_Nq(q); //std::cout << Nq << "\t" << number_Q << "\n";
-
         // Use std::find to check if the element exists in the vector
         auto it = std::find(nodes_Q.begin(), nodes_Q.end(), Nq);
         if(it == nodes_Q.end()){
             // std::cout << "Element " << Nq << " not found in the vector." << std::endl;
             nodes_Q.push_back(Nq);
-
-            // [TEMP] will be replace after control synthesizing
-            Eigen::VectorXd u = s.segment(size_x, size_u); // log_vector(u);
-            discrete_state_to_control[Nq] = u;
-            // std::cout << "discrete state to control map(" << Nq << ") "; log_vector(discrete_state_to_control[Nq]);
         }
     }
+
+    // intersection with x goals (sample the goal region)
+    for(int i=0; i<50; i++){
+        Eigen::VectorXd x(size_x);
+        for(int j=0; j<size_x; j++){
+            x[j] = getRandomDouble(x_goals[j][0], x_goals[j][1]);
+        }
+        std::vector<unsigned int> q = map_x_to_q(x); //log_vector(q);
+        unsigned int Nq = map_q_to_Nq(q); //std::cout << Nq << "\t" << number_Q << "\n";
+        // Use std::find to check if the element exists in the vector
+        auto it = std::find(nodes_Q.begin(), nodes_Q.end(), Nq);
+        if(it == nodes_Q.end()){
+            // std::cout << "Element " << Nq << " not found in the vector." << std::endl;
+            nodes_Q.push_back(Nq);
+        }
+    }
+
     // store these pivot nodes
-    std::vector<unsigned int> nodes_Q_pivot = nodes_Q;
-    // add 1-neigborhood nodes
-    for(const auto& Nq : nodes_Q_pivot){
-        Eigen::VectorXd x = map_q_to_x(map_Nq_to_q(Nq));
-        // positive neighbor
-        for(int i=0; i<size_x; i++){
-            Eigen::VectorXd x_neighbor_i = x;
-            x_neighbor_i[i] = x_neighbor_i[i] + dx[i];
-            if(!planner_pointer->ode_solver_pointer->ode_pointer->is_out_of_domain(x_neighbor_i)){
-                unsigned int Nq_neighbor_i = map_q_to_Nq(map_x_to_q(x_neighbor_i));
-                auto it = std::find(nodes_Q.begin(), nodes_Q.end(), Nq_neighbor_i);
-                if(it == nodes_Q.end()){
-                    // std::cout << "Element " << Nq << " not found in the vector." << std::endl;
-                    nodes_Q.push_back(Nq_neighbor_i);
+    std::vector<unsigned int> nodes_Q_pivot;
+    nodes_Q_pivot = nodes_Q;
+    add_Q_neighbors(nodes_Q_pivot);
+    nodes_Q_pivot = nodes_Q;
+    add_Q_neighbors(nodes_Q_pivot);
 
-                    // [TEMP] will be replace after control synthesizing
-                    Eigen::VectorXd u = discrete_state_to_control[Nq];
-                    discrete_state_to_control[Nq_neighbor_i] = u;
-                }
-            }
-        }
-        // negative neighbor
-        for(int i=0; i<size_x; i++){
-            Eigen::VectorXd x_neighbor_i = x;
-            x_neighbor_i[i] = x_neighbor_i[i] - dx[i];
-            if(!planner_pointer->ode_solver_pointer->ode_pointer->is_out_of_domain(x_neighbor_i)){
-                unsigned int Nq_neighbor_i = map_q_to_Nq(map_x_to_q(x_neighbor_i));
-                auto it = std::find(nodes_Q.begin(), nodes_Q.end(), Nq_neighbor_i);
-                if(it == nodes_Q.end()){
-                    // std::cout << "Element " << Nq << " not found in the vector." << std::endl;
-                    nodes_Q.push_back(Nq_neighbor_i);
-
-                    // [TEMP] will be replace after control synthesizing
-                    Eigen::VectorXd u = discrete_state_to_control[Nq];
-                    discrete_state_to_control[Nq_neighbor_i] = u;
-                }
+    // construct the goal node mapping: Nq --> bool
+    // init to true
+    for(int i=0; i<nodes_Q.size(); i++){
+        map_to_is_goal_node[i] = true;
+    }
+    // Set to false
+    for(int i=0; i<nodes_Q.size(); i++){
+        Eigen::VectorXd x = map_q_to_x( map_Nq_to_q(nodes_Q[i]));
+        std::vector<Eigen::VectorXd> x_s = get_boader_points(x);
+        for(const auto& x_ss : x_s){
+            if(!planner_pointer->ode_solver_pointer->ode_pointer->is_goals(x_ss, x_goals)){
+                map_to_is_goal_node[i] = false;
+                break;
             }
         }
     }
+    std::cout << "goal nodes: ";
+    for(int i=0; i<map_to_is_goal_node.size(); i++){
+        if(map_to_is_goal_node[i]){
+            std::cout << i << ",";
+        }
+    }
+    std::cout << "\n";
 
     // add a fail node
     nodes_Q.push_back(number_Q);
@@ -109,77 +111,251 @@ std::vector<Eigen::VectorXd> MDP::debug_discrete_state(){
     return traj;
 }
 
-Eigen::VectorXd MDP::get_feedback_control(const Eigen::VectorXd& s){
+std::tuple<bool, Eigen::VectorXd> MDP::get_feedback_control(const Eigen::VectorXd& s){
     Eigen::VectorXd u = Eigen::VectorXd::Zero(size_u);
     unsigned int Nq = map_q_to_Nq(map_x_to_q(s));
     // std::cout << "[DEBUG] discrete state: " << Nq << "\n";
-    for(const auto& Q : nodes_Q){
-        if(Nq == Q){
-            u = discrete_state_to_control[Nq];
+    for(int i=0; i<nodes_Q.size(); i++){
+        if(Nq == nodes_Q[i]){
+            u = discrete_state_to_control[i];
             // std::cout << "[DEBUG] u(MDP): "; log_vector(u);
-            return u;
+            return std::make_tuple(true, u);
         }
     }
     std::cout << "[ERROR] no defined feedback control\n";
-    return u;
+    return std::make_tuple(false, u);;
 }
 
 
-void MDP::construct_mdp(){
+void MDP::construct_transition(){
     // test_mapping();
-    // //trans_prob.clear();
-    // int number_samples = 1;
-    // double time_duration = 1.0;
-    // bool is_process_noise = false;
-    // bool is_check_unsafe = true;
-    // unsigned int dN = number_Q/100;
-    // for(unsigned int Nq=0; Nq<number_Q; Nq++){
-    //     for(unsigned int Nsigma=0; Nsigma<number_Q; Nsigma++){
-    //         construct_trans_prob(Nq, Nsigma, number_samples, time_duration, is_process_noise, is_check_unsafe);
-    //     }
-    //     if(Nq%dN == 0){
-    //         std::cout << round( 100.0 * static_cast<double>(Nq) / static_cast<double>(number_Q) ) << " %\n";
-    //     }
-    // }
+    // return;
+    
+    // Init transition
+    const unsigned int number_finite_state = nodes_Q.size();
+    is_set_transitions_success = false;
+
+    // Transition_pointer = new SparseMatrix(number_finite_state*number_Sigma, number_finite_state);
+    matrix = new std::vector<std::map<unsigned int, double>>(number_finite_state*number_Sigma);
+    int number_samples = 1;
+    double time_duration = 1.0;
+    bool is_process_noise = false;
+    bool is_check_unsafe = true;
+
+    // for progress print-out
+    unsigned int dN;
+    if(nodes_Q.size() >= 100){
+        dN = nodes_Q.size()/100;
+    }
+    else{
+        dN = 1;
+    }
+
+    for(unsigned int n_q=0; n_q<number_finite_state; n_q++){
+        if(n_q%dN == 0){
+            std::cout << round( 100.0 * static_cast<double>(n_q) / static_cast<double>(nodes_Q.size()) ) << " %\n";
+        }
+        for(unsigned int n_sigma=0; n_sigma<number_Sigma; n_sigma++){
+            set_transitions(n_q, n_sigma, number_samples, time_duration, is_process_noise, is_check_unsafe);
+        }
+    }
 }
 
 
-void MDP::construct_trans_prob(unsigned int Nq, unsigned int Nsigma, int number_samples, double time_duration,
-                               bool is_process_noise, bool is_check_unsafe){
-    // std::vector<unsigned int> q = map_Nq_to_q(Nq);
-    // std::vector<unsigned int> sigma = map_Nsigma_to_sigma(Nsigma);
-    // Eigen::VectorXd x = map_q_to_x(q);
-    // Eigen::VectorXd u = map_sigma_to_u(sigma);
-    // for(int i=0; i<number_samples; i++){
-    //     std::vector<Eigen::VectorXd> traj_segment;
-    //     traj_segment = planner_pointer->ode_solver_pointer->solver_runge_kutta(
-    //                                     x, 
-    //                                     u, 
-    //                                     planner_pointer->ode_solver_pointer->time_integration, 
-    //                                     time_duration, 
-    //                                     x_goals, 
-    //                                     is_process_noise,
-    //                                     is_check_unsafe);
-    //     if(!traj_segment.empty()){
-    //         Eigen::VectorXd x_new = traj_segment.back();
-    //         std::vector<unsigned int> q_new = map_x_to_q(x_new);
-    //         unsigned int Nq_new = map_q_to_Nq(q_new);
-    //         unsigned int row = map_NqNsigma_to_row(Nq, Nsigma);
-    //         // get the value
-    //         unsigned int value = sparse_matrix_pointer->getElement(row, Nq_new);
-    //         // update the vaue
-    //         value = value + 1.0/(static_cast<double>(number_samples));
-    //         sparse_matrix_pointer->setElement(row, Nq_new, value);           
-    //         //std::tuple< unsigned int, unsigned int, unsigned int > state_action_state(Nq, Nsigma, Nq_new);
-    //         //trans_prob[state_action_state] = trans_prob[state_action_state] + 1.0/(static_cast<double>(number_samples));
-    //         // if(Nq != Nq_new){
-    //         //     log_vector(q);
-    //         //     std::cout << " --> ";
-    //         //     log_vector(q_new);
-    //         //     std::cout << "\n";
-    //         // }
-    //     }
+void MDP::set_transitions(unsigned int n_q, unsigned int n_sigma, int number_samples, double time_duration,
+                          bool is_process_noise, bool is_check_unsafe){
+    // get Nq
+    unsigned int Nq = nodes_Q[n_q];
+    if(Nq == number_Q){
+        // std::cout << "[DEBUG] fail node, no transition needed\n";
+        return;
+    }
+    //std::cout << n_q << "-th node is: " << Nq << "\t";
+
+    // get x
+    Eigen::VectorXd x = map_q_to_x(map_Nq_to_q(Nq));
+    //std::cout << "x: "; log_vector(x);
+
+    // get x_s
+    std::vector<Eigen::VectorXd> x_s = get_boader_points(x);
+    x_s.push_back(x);
+
+    // get Nsigma
+    unsigned int Nsigma = n_sigma;
+    // get u
+    Eigen::VectorXd u = map_sigma_to_u( map_Nsigma_to_sigma(Nsigma));
+    //std::cout << n_sigma << " -th u is: "; log_vector(u);
+
+    // get index row
+    unsigned int index_row = number_Sigma * n_q + n_sigma;
+    //std::cout << "i(row): " << index_row << "\n";
+
+    // outerloop: noise sample, inner loop: state sample
+    const int number_boader_points = x_s.size();
+    const int number_total_samples = number_samples * number_boader_points;
+
+    for(int i=0; i<number_samples; i++){
+        for(int j=0; j<number_boader_points; j++){
+            std::vector<Eigen::VectorXd> traj_segment;
+            traj_segment = planner_pointer->ode_solver_pointer->solver_runge_kutta(
+                                            x_s[j], 
+                                            u, 
+                                            planner_pointer->ode_solver_pointer->time_integration, 
+                                            time_duration, 
+                                            x_goals, 
+                                            is_process_noise,
+                                            is_check_unsafe);
+            // if feasible new state exists
+            if(!traj_segment.empty()){
+                // get x_new
+                Eigen::VectorXd x_new = traj_segment.back();
+
+                // map to Nq_new
+                std::vector<unsigned int> q_new = map_x_to_q(x_new);
+                unsigned int Nq_new = map_q_to_Nq(q_new);
+                // std::cout << "Nq new: " << Nq_new << "\t";
+
+                // check if Nq new is in the finite state and get the corresponding index.
+                unsigned int index_Nq_new;
+                auto it = find(nodes_Q.begin(), nodes_Q.end(), Nq_new);
+                if(it != nodes_Q.end()){
+                    // std::cout << j << "-set transition: " << Nq << " " << Nsigma << " " << Nq_new << "\n";
+                    index_Nq_new = it - nodes_Q.begin();
+                }
+                else{
+                    // std::cout << j << "-set transition (fail node): " << Nq << " " << Nsigma << " " << number_Q << "\n";
+                    index_Nq_new = nodes_Q.size()-1;
+                }
+                // std::cout << "i(Nq new): " << index_Nq_new;
+
+                if(!is_set_transitions_success && map_to_is_goal_node[index_Nq_new] && n_q != index_Nq_new){
+                    is_set_transitions_success = true;
+                }
+
+                // get the value
+                double value = (*matrix)[index_row][index_Nq_new];
+                // std::cout << "\texisting value: " << value;
+                value = value + 1.0/static_cast<double>(number_total_samples);
+                // update the value
+                (*matrix)[index_row][index_Nq_new] = value;
+                // std::cout << "\tafter update: " << (*matrix)[index_row][index_Nq_new] << "\n";
+            }
+        }
+    }
+    // std::cout << "\n";
+}
+
+
+void MDP::value_iteration(){
+    // [TEMP] MDP for testing
+    // nodes_Q.clear();
+    // number_Sigma = 2;
+    // matrix->clear();
+    // nodes_Q = {0, 1, 2, 3, 4};
+    // const unsigned int number_finite_state = nodes_Q.size();
+    // matrix = new std::vector<std::map<unsigned int, double>>(number_finite_state*number_Sigma);
+    // (*matrix)[0][1] = 1.0; (*matrix)[1][2] = 1.0; (*matrix)[2][2] = 1.0; (*matrix)[3][3] = 1.0;
+    // (*matrix)[4][3] = 1.0; (*matrix)[5][4] = 1.0; (*matrix)[6][4] = 1.0; (*matrix)[7][3] = 1.0;
+    // print_transition();
+    // map_to_is_goal_node.clear();
+    // for(int i=0; i<nodes_Q.size(); i++){
+    //     map_to_is_goal_node[i] = false;
     // }
+    // map_to_is_goal_node[3] = true;
+
+    const double converge_epsilon = 0.01;
+
+    // Value iteration (1)
+    J = new std::vector<double>(nodes_Q.size(), 0.0);
+
+    for(int i=0; i<nodes_Q.size(); i++){
+        if(map_to_is_goal_node[i]){
+            (*J)[i] = reward(i, 0);
+        }
+    }
+    J->back() = reward(nodes_Q.size()-1, 0);
+    // std::cout << "J(0): "; print_J((*J));
+
+    // iteration k
+    for(int k=0; k<200; k++){
+        double epsilon = -std::numeric_limits<double>::infinity();
+
+        for(int i=0; i<nodes_Q.size()-1; i++){
+            if(!map_to_is_goal_node[i]){
+                // Init
+                double optimal_value_J_q_sigma = -std::numeric_limits<double>::infinity();
+                for(int j=0; j<number_Sigma; j++){
+                    unsigned int Nsigma = j;
+                    unsigned int index_row = number_Sigma * i + j;
+                    double value_J_q_sigma = reward(i, 0);
+                    for (const auto& entry : (*matrix)[index_row]) {
+                        //std::cout << "(" << index_row << ", " << entry.first << "): " << entry.second << "\t";
+                        unsigned int index_col = entry.first;
+                        double probability = entry.second;
+                        value_J_q_sigma = value_J_q_sigma + gamma * probability* (*J)[index_col];
+                        // if((*J)[index_col] > 0){
+                        //     std::cout << i << " " << probability << " " << (*J)[index_col] << " " << value_J_q_sigma << "\n";
+                        // }
+                    }
+                    if(value_J_q_sigma > optimal_value_J_q_sigma){
+                        optimal_value_J_q_sigma = value_J_q_sigma;
+                    }
+                }
+                // compute epsilon i
+                double error_i = std::abs(optimal_value_J_q_sigma - (*J)[i]);
+                if(error_i > epsilon){
+                    epsilon = error_i;
+                }
+                // update J[i]
+                // std::cout << i << " " << optimal_value_J_q_sigma << "\n";
+                (*J)[i] = optimal_value_J_q_sigma;
+            }
+        }
+
+        // iteration end
+        // std::cout << k+1 << " == max error === " << epsilon << "\n";
+        // std::cout << "J(" << k+1 << "): "; print_J(*J);
+        // std::cout << "\n";
+
+        if(epsilon < converge_epsilon){
+            std::cout << "value iteration converage\n";
+            break;
+        }
+    }
+    // std::cout << "J: "; print_J(*J);
+}
+
+
+void MDP::synthesize_control(){
+    for(int i=0; i<nodes_Q.size()-1; i++){
+        if(!map_to_is_goal_node[i]){
+            unsigned int optimal_Nsigma = 0;
+            double optimal_value_J_q_sigma = -std::numeric_limits<double>::infinity();
+            for(int j=0; j<number_Sigma; j++){
+                unsigned int index_row = number_Sigma * i + j;
+                double value_J_q_sigma = reward(i, 0);
+                for (const auto& entry : (*matrix)[index_row]) {
+                    unsigned int index_col = entry.first;
+                    double probability = entry.second;
+                    value_J_q_sigma = value_J_q_sigma + gamma * probability * (*J)[index_col];
+                }
+                if(value_J_q_sigma > optimal_value_J_q_sigma){
+                    optimal_value_J_q_sigma = value_J_q_sigma;
+                    optimal_Nsigma = j;
+                }
+            }
+            Eigen::VectorXd u = map_sigma_to_u(map_Nsigma_to_sigma(optimal_Nsigma));
+            discrete_state_to_control[i] = u;
+        }
+        else{
+            Eigen::VectorXd u = Eigen::VectorXd::Zero(size_u);
+            discrete_state_to_control[i] = u;
+        }
+    }
+
+    // testing
+    int i = 0;
+    log_vector(discrete_state_to_control[i]);
 }
 
 
@@ -341,34 +517,34 @@ void MDP::log_vector(const std::vector<unsigned int>& v){
 void MDP::test_mapping(){
     std::cout << "mapping test\n";
 
-    for(unsigned int i=0; i<number_Q; i++){
-        std::vector<unsigned int> q0 = map_Nq_to_q(i);
-        log_vector(q0);
+    // for(unsigned int i=0; i<number_Q; i++){
+    //     std::vector<unsigned int> q0 = map_Nq_to_q(i);
+    //     log_vector(q0);
 
-        Eigen::VectorXd x0 = map_q_to_x(q0);
-        log_vector(x0);
+    //     Eigen::VectorXd x0 = map_q_to_x(q0);
+    //     log_vector(x0);
 
-        q0 = map_x_to_q(x0);
-        log_vector(q0);
+    //     q0 = map_x_to_q(x0);
+    //     log_vector(q0);
 
-        std::cout << map_q_to_Nq(q0);
-
-        std::cout << "\n";
-    }
-
-    // std::cout << "\n";
-    // for(unsigned int i=0; i<number_Sigma; i++){
-    //     std::vector<unsigned int> sigma = map_Nsigma_to_sigma(i);
-    //     log_vector(sigma);
-
-    //     Eigen::VectorXd u = map_sigma_to_u(sigma);
-    //     log_vector(u);
-
-    //     sigma = map_u_to_sigma(u);
-    //     log_vector(sigma);
+    //     std::cout << map_q_to_Nq(q0);
 
     //     std::cout << "\n";
     // }
+
+    std::cout << "\n";
+    for(unsigned int i=0; i<number_Sigma; i++){
+        std::vector<unsigned int> sigma = map_Nsigma_to_sigma(i);
+        log_vector(sigma);
+
+        Eigen::VectorXd u = map_sigma_to_u(sigma);
+        log_vector(u);
+
+        sigma = map_u_to_sigma(u);
+        log_vector(sigma);
+
+        std::cout << "\n";
+    }
 
     // for(unsigned int Nq=0; Nq<number_Q; Nq++){
     //     for(unsigned int Nsigma=0; Nsigma<number_Sigma; Nsigma++){
@@ -380,14 +556,137 @@ void MDP::test_mapping(){
 }
 
 
- bool MDP::is_same_q(const std::vector<unsigned int>& q1, const std::vector<unsigned int>& q2){
+std::vector<Eigen::VectorXd> MDP::get_neighbor_points(const Eigen::VectorXd& x){
+    std::vector<Eigen::VectorXd> x_s;
+    // positive neighbor
     for(int i=0; i<size_x; i++){
-        if(q1[i] != q2[i]){
-            return false;
+        Eigen::VectorXd x_neighbor_i = x;
+        x_neighbor_i[i] = x_neighbor_i[i] + dx[i];
+        if(!planner_pointer->ode_solver_pointer->ode_pointer->is_out_of_domain(x_neighbor_i)){
+            x_s.push_back(x_neighbor_i);
         }
     }
-    return true;
- }
+    // negative neighbor
+    for(int i=0; i<size_x; i++){
+        Eigen::VectorXd x_neighbor_i = x;
+        x_neighbor_i[i] = x_neighbor_i[i] - dx[i];
+        if(!planner_pointer->ode_solver_pointer->ode_pointer->is_out_of_domain(x_neighbor_i)){
+            x_s.push_back(x_neighbor_i);
+        }
+    }
+    // all positive neigbor
+    Eigen::VectorXd x_neighbor_i = x + dx;
+    if(!planner_pointer->ode_solver_pointer->ode_pointer->is_out_of_domain(x_neighbor_i)){
+        x_s.push_back(x_neighbor_i);
+    }
+    // all negative neighbor
+    x_neighbor_i = x - dx;
+    if(!planner_pointer->ode_solver_pointer->ode_pointer->is_out_of_domain(x_neighbor_i)){
+        x_s.push_back(x_neighbor_i);
+    }
+    return x_s;
+}
+
+
+std::vector<Eigen::VectorXd> MDP::get_boader_points(const Eigen::VectorXd& x){
+    std::vector<Eigen::VectorXd> x_s;
+    // positive neighbor
+    for(int i=0; i<size_x; i++){
+        Eigen::VectorXd x_neighbor_i = x;
+        x_neighbor_i[i] = x_neighbor_i[i] + 0.5*dx[i];
+        if(!planner_pointer->ode_solver_pointer->ode_pointer->is_out_of_domain(x_neighbor_i)){
+            x_s.push_back(x_neighbor_i);
+        }
+    }
+    // negative neighbor
+    for(int i=0; i<size_x; i++){
+        Eigen::VectorXd x_neighbor_i = x;
+        x_neighbor_i[i] = x_neighbor_i[i] - 0.5*dx[i];
+        if(!planner_pointer->ode_solver_pointer->ode_pointer->is_out_of_domain(x_neighbor_i)){
+            x_s.push_back(x_neighbor_i);
+        }
+    }
+    // all positive neigbor
+    Eigen::VectorXd x_neighbor_i = x + 0.5*dx;
+    if(!planner_pointer->ode_solver_pointer->ode_pointer->is_out_of_domain(x_neighbor_i)){
+        x_s.push_back(x_neighbor_i);
+    }
+    // all negative neighbor
+    x_neighbor_i = x - 0.5*dx;
+    if(!planner_pointer->ode_solver_pointer->ode_pointer->is_out_of_domain(x_neighbor_i)){
+        x_s.push_back(x_neighbor_i);
+    }
+    return x_s;
+}
+
+
+std::vector<Eigen::VectorXd> MDP::write_transition(){
+    std::vector<Eigen::VectorXd> data;
+    for (int i = 0; i < matrix->size(); ++i) {
+        for (const auto& entry : (*matrix)[i]) {
+            // std::cout << "(" << i << ", " << entry.first << "): " << entry.second << "\t";
+            Eigen::VectorXd row(3);
+            row << i, entry.first, entry.second;
+            data.push_back(row);
+        }
+    }
+    // std::cout << "\n";
+    return data;
+}
+
+
+double MDP::getRandomDouble(double x_min, double x_max) {
+    // Seed the random number generator with a random device
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    // Define the distribution for double values in the range [x_min, x_max]
+    std::uniform_real_distribution<double> distribution(x_min, x_max);
+
+    double value = distribution(gen);
+
+    return value;
+    // double multiplier = std::pow(10.0, 3);
+    // return std::round(value * multiplier) / multiplier;
+}
+
+
+double MDP::reward(const unsigned int& i_Nq, const unsigned int& i_Nsigma){
+    if(map_to_is_goal_node[i_Nq]){
+        return 1.0;
+    }
+    if(i_Nq == nodes_Q.size()-1){
+        return -1.0;
+    }
+    return 0.0;
+}
+
+void MDP::print_J(const std::vector<double>& J){
+    for(const auto& jj : J){
+        std::cout << std::fixed << std::setprecision(2) << jj << ", ";
+    }
+    std::cout << "\n";
+}
+
+void MDP::add_Q_neighbors(const std::vector<unsigned int> nodes_Q_pivot){
+    // add 1-neigborhood nodes
+    for(const auto& Nq : nodes_Q_pivot){
+        if(Nq != number_Q){
+            Eigen::VectorXd x = map_q_to_x(map_Nq_to_q(Nq));
+            std::vector<Eigen::VectorXd> x_s = get_neighbor_points(x);
+            for(const auto& x_neighbor : x_s){
+                // [NOTE: more Rigorous checkind is required]
+                if(!planner_pointer->ode_solver_pointer->ode_pointer->is_out_of_domain(x_neighbor)){
+                    unsigned int Nq_neighbor = map_q_to_Nq(map_x_to_q(x_neighbor));
+                    auto it = std::find(nodes_Q.begin(), nodes_Q.end(), Nq_neighbor);
+                    if(it == nodes_Q.end()){
+                        nodes_Q.push_back(Nq_neighbor);
+                    }
+                }
+            }
+        }
+    }
+}
 
 
 // std::vector<Eigen::VectorXd> MDP::write_sparse_matrix(){
