@@ -158,12 +158,17 @@ void control_motionplanner_and_lqr(){
     const int size_u = 4; // (control inputs, time_duration)
 
     auto [ode_pointer, planner_pointer, x_start, x_goals] = define_problem();
-
-    std::vector<Eigen::VectorXd> sol = planner_pointer->plan(x_start, x_goals);
-    HELPER::log_trajectory(sol);
     std::string sol_file = "outputs/" + planner_pointer->planner_name + "_" 
                            + ode_pointer->ode_name + "_sol.csv";
-    HELPER::write_traj_to_csv(sol, sol_file);
+    std::vector<Eigen::VectorXd> sol;
+    // A. construct
+    // std::vector<Eigen::VectorXd> sol = planner_pointer->plan(x_start, x_goals);
+    // HELPER::log_trajectory(sol);
+    // std::string sol_file = "outputs/" + planner_pointer->planner_name + "_" 
+    //                        + ode_pointer->ode_name + "_sol.csv";
+    // HELPER::write_traj_to_csv(sol, sol_file);
+    // B. write
+    sol = HELPER::read_csv_data(sol_file);
     // Construct reference Trajectory
     std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol, x_goals);
     std::string traj_file = "outputs/" + planner_pointer->planner_name + "_" 
@@ -190,90 +195,99 @@ void control_motionplanner_and_lqr(){
     }
 
     // Init
-    int time_elong = 1;
+    int time_elong = 20;
     bool is_process_noise = true;
-    bool is_check_unsafe = false;
-    Eigen::VectorXd x = x_start;
+    bool is_check_unsafe = true;
+    Eigen::VectorXd x;
     std::vector<Eigen::VectorXd> traj_runtime;
+    int N_trials = 100;
+    int N_success = 0;
+    // outer loop of k trials
+    for(int k=0; k<N_trials; k++){
+        x = x_start;
+        traj_runtime.clear();
+        // inner loop of time simulation
+        for(int i=0; i<traj_nominal.size()+time_elong; i++){
+            // std::cout << "[DEBUG] state: "; HELPER::log_vector(x); // real state
 
-    for(int i=0; i<traj_nominal.size()+time_elong; i++){
-        // std::cout << "[DEBUG] state: "; HELPER::log_vector(x); // real state
+            // Select x_u ref
+            Eigen::VectorXd x_u;
+            if(i < traj_nominal.size()){
+                x_u = traj_nominal[i];
+            }
+            else{
+                // approximate a single point of (state and control)
+                x_u = approx_goal_state_and_control(x_goals);
+            }
+            Eigen::VectorXd x_ref = x_u.segment(0,size_x); //std::cout << "x ref: "; HELPER::log_vector(x_ref);
+            Eigen::VectorXd u_ref = x_u.segment(size_x,size_u-1); //std::cout << "[DEBUG] u ref: "; HELPER::log_vector(u_ref);
 
-        // Select x_u ref
-        Eigen::VectorXd x_u;
-        if(i < traj_nominal.size()){
-            x_u = traj_nominal[i];
+            // Compute u_online
+            Eigen::VectorXd u_online = u_ref;
+            // auto [F, G] = ode_pointer->get_linear_dynamics_matrices(x_ref, u_ref, time_control_update);
+            // // HELPER::log_transition_transition_matrix_pointer(F); HELPER::log_transition_transition_matrix_pointer(G);
+            // bool lqr_solved = HELPER::solveRiccatiIterationD(F, G, Q, R, P);
+            // if(lqr_solved){
+            //     // HELPER::log_transition_transition_matrix_pointer(P);
+            //     Eigen::MatrixXd K = (R+G.transpose()*P*G).inverse()*G.transpose()*P*F;
+            //     // std::cout << "K: "; HELPER::log_transition_transition_matrix_pointer(K);
+            //     Eigen::VectorXd state_error = x - x_ref;                
+            //     // std::cout << "state error: "; HELPER::log_vector(state_error);
+
+            //     Eigen::VectorXd delta_u_lqr = -K*(state_error);
+            //     // [TEMP]
+            //     delta_u_lqr = 0.0 * delta_u_lqr;
+            //     // std::cout << "delta u lqr: "; HELPER::log_vector(delta_u_lqr);
+                
+            //     // NOTE: this u_online can grow out of bound
+            //     // (1) bound u_online to feasible control domain
+            //     // of (2) bound the state error (Referenence Governer)
+            //     u_online = u_online + delta_u_lqr; 
+            //     u_online = u_online.cwiseMax(-Eigen::VectorXd::Ones(u_online.size()))
+            //                         .cwiseMin(Eigen::VectorXd::Ones(u_online.size()));
+            // }
+            // std::cout << "u online (MP+LQR): "; HELPER::log_vector(u_online);
+
+            //Execute with noise
+            std::vector<Eigen::VectorXd> traj_segment;
+            traj_segment = planner_pointer->ode_solver_pointer->solver_runge_kutta(
+                                            x, 
+                                            u_online, 
+                                            planner_pointer->ode_solver_pointer->time_integration, 
+                                            time_control_update, 
+                                            x_goals, 
+                                            is_process_noise,
+                                            is_check_unsafe);
+            // Out-of-domain and Unsafe break
+            // NOTE 2024.02.15: need to redfine the solver_runge_kutta return value
+            if(traj_segment.empty()){
+                std::cout << "[DEBUG] out-of-domain or unsafe break\n";
+                break;
+            }
+            // update
+            x = traj_segment.back();
+            // write
+            if(!traj_runtime.empty()){
+                traj_runtime.pop_back();
+            }
+            traj_runtime.insert(traj_runtime.end(), traj_segment.begin(), traj_segment.end());
+            // Reach goal break
+            if(ode_pointer->is_goals(x, x_goals)){
+                std::cout << "[DEBUG] reach goal\n";
+                std::cout << "goal state (run): "; HELPER::log_vector(x);
+                N_success = N_success + 1;
+                break;
+            }
         }
-        else{
-            // approximate a single point of (state and control)
-            x_u = approx_goal_state_and_control(x_goals);
+        if(!ode_pointer->is_goals(x, x_goals)){
+            std::cout << "[DEBUG] cannot reach goal within nominal + " << time_elong * time_control_update << " time \n";
         }
-        Eigen::VectorXd x_ref = x_u.segment(0,size_x); //std::cout << "x ref: "; HELPER::log_vector(x_ref);
-        Eigen::VectorXd u_ref = x_u.segment(size_x,size_u-1); //std::cout << "[DEBUG] u ref: "; HELPER::log_vector(u_ref);
 
-        // Compute u_online
-        Eigen::VectorXd u_online = u_ref;
-        // auto [F, G] = ode_pointer->get_linear_dynamics_matrices(x_ref, u_ref, time_control_update);
-        // // HELPER::log_matrix(F); HELPER::log_matrix(G);
-        // bool lqr_solved = HELPER::solveRiccatiIterationD(F, G, Q, R, P);
-        // if(lqr_solved){
-        //     // HELPER::log_matrix(P);
-        //     Eigen::MatrixXd K = (R+G.transpose()*P*G).inverse()*G.transpose()*P*F;
-        //     // std::cout << "K: "; HELPER::log_matrix(K);
-        //     Eigen::VectorXd state_error = x - x_ref;                
-        //     // std::cout << "state error: "; HELPER::log_vector(state_error);
-
-        //     Eigen::VectorXd delta_u_lqr = -K*(state_error);
-        //     // [TEMP]
-        //     delta_u_lqr = 0.0 * delta_u_lqr;
-        //     // std::cout << "delta u lqr: "; HELPER::log_vector(delta_u_lqr);
-            
-        //     // NOTE: this u_online can grow out of bound
-        //     // (1) bound u_online to feasible control domain
-        //     // of (2) bound the state error (Referenence Governer)
-        //     u_online = u_online + delta_u_lqr; 
-        //     u_online = u_online.cwiseMax(-Eigen::VectorXd::Ones(u_online.size()))
-        //                         .cwiseMin(Eigen::VectorXd::Ones(u_online.size()));
-        // }
-        // std::cout << "u online (MP+LQR): "; HELPER::log_vector(u_online);
-
-        //Execute with noise
-        std::vector<Eigen::VectorXd> traj_segment;
-        traj_segment = planner_pointer->ode_solver_pointer->solver_runge_kutta(
-                                        x, 
-                                        u_online, 
-                                        planner_pointer->ode_solver_pointer->time_integration, 
-                                        time_control_update, 
-                                        x_goals, 
-                                        is_process_noise,
-                                        is_check_unsafe);
-        // Out-of-domain and Unsafe break
-        // NOTE 2024.02.15: need to redfine the solver_runge_kutta return value
-        if(traj_segment.empty()){
-            std::cout << "[DEBUG] out-of-domain or unsafe break\n";
-            break;
+        std::string traj_runtime_file = "outputs/" + planner_pointer->planner_name + "_" 
+                                + ode_pointer->ode_name + "_noise_traj(mp+lqr).csv";
+        HELPER::write_traj_to_csv(traj_runtime, traj_runtime_file); // HELPER::log_trajectory(traj);
         }
-        // update
-        x = traj_segment.back();
-        // write
-        if(!traj_runtime.empty()){
-            traj_runtime.pop_back();
-        }
-        traj_runtime.insert(traj_runtime.end(), traj_segment.begin(), traj_segment.end());
-        // Reach goal break
-        if(ode_pointer->is_goals(x, x_goals)){
-            std::cout << "[DEBUG] reach goal\n";
-            std::cout << "goal state (run): "; HELPER::log_vector(x);
-            break;
-        }
-    }
-    if(!ode_pointer->is_goals(x, x_goals)){
-        std::cout << "[DEBUG] cannot reach goal within nominal + " << time_elong * time_control_update << " time \n";
-    }
-
-    std::string traj_runtime_file = "outputs/" + planner_pointer->planner_name + "_" 
-                            + ode_pointer->ode_name + "_noise_traj(mp+lqr).csv";
-    HELPER::write_traj_to_csv(traj_runtime, traj_runtime_file); // HELPER::log_trajectory(traj);
+    std::cout << "[DEBUG] success trials: " << N_success << "/" << N_trials << "\n";
 }
 
 
@@ -283,155 +297,171 @@ void control_mdp(){
 
     // Define the problem
     auto [ode_pointer, planner_pointer, x_start, x_goals] = define_problem();
+    // Init the optimal solution
     std::vector<Eigen::VectorXd> sol_optimal;
-
-    // Plan AO
-    double plan_time_max = 10.0;
-    int N_run = 6;
-    planner_pointer->set_plan_time_max(plan_time_max);
-    for(int i=0; i<N_run; i++){
-        std::vector<Eigen::VectorXd> sol = planner_pointer->plan(x_start, x_goals);
-
-        if(planner_pointer->is_success){
-            double cost = planner_pointer->get_cost();
-            std::cout << "[DEBUG] cost: " << cost << "\n";
-            planner_pointer->set_cost_threshold(cost);
-            std::cout << "[DEBUG] update cost threshold\n";
-            HELPER::log_trajectory(sol);
-            sol_optimal.clear();
-            sol_optimal = sol;
-        }
-        else{ // increase plan time max
-            planner_pointer->set_plan_time_max(plan_time_max);
-        }
-    }
-
-    // Write solution
-    HELPER::log_trajectory(sol_optimal);
     std::string sol_file = "outputs/" + planner_pointer->planner_name + "_" 
                            + ode_pointer->ode_name + "_sol.csv";
-    HELPER::write_traj_to_csv(sol_optimal, sol_file);
+    // Construct or Read
+    bool IS_CONSTRUCT = true;
+
+    // Solution
+    if(IS_CONSTRUCT){
+        // A. construct solution (Plan AO)
+        double plan_time_max = 10.0;
+        int N_run = 10;
+        planner_pointer->set_plan_time_max(plan_time_max);
+        for(int i=0; i<N_run; i++){
+            std::vector<Eigen::VectorXd> sol = planner_pointer->plan(x_start, x_goals);
+            if(planner_pointer->is_success){
+                double cost = planner_pointer->get_cost();
+                std::cout << "[DEBUG] cost: " << cost << "\n";
+                planner_pointer->set_cost_threshold(cost);
+                std::cout << "[DEBUG] update cost threshold\n";
+                HELPER::log_trajectory(sol);
+                sol_optimal.clear();
+                sol_optimal = sol;
+            }
+            else{ // increase plan time max
+                planner_pointer->set_plan_time_max(plan_time_max);
+            }
+        }
+        HELPER::write_traj_to_csv(sol_optimal, sol_file);
+    }
+    else{
+        // B. read solution
+        sol_optimal = HELPER::read_csv_data(sol_file);
+    }
 
     // Construct reference Trajectory
-    std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol_optimal, x_goals);
     std::string traj_file = "outputs/" + planner_pointer->planner_name + "_" 
                             + ode_pointer->ode_name + "_traj.csv";
+    std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol_optimal, x_goals);
+    // Write trajectory
     HELPER::write_traj_to_csv(traj, traj_file);
 
-    // [Obsolete] Compute nominal control trajecotory (time_control_update, time_integration)
+    // Set nominal control trajecotory
     double time_control_update = 1.0;
     std::vector<Eigen::VectorXd> traj_nominal = traj;
-    // int number_data_per_control_update = int(time_control_update/planner_pointer->ode_solver_pointer->time_integration);
-    // std::vector<Eigen::VectorXd> traj_nominal;
-    // for(int i=0; i<traj.size(); i+=number_data_per_control_update){
-    //     traj_nominal.push_back(traj[i]);
-    // }
-    // HELPER::log_trajectory(traj_nominal);
 
     // Define MDP
     const int number_per_state  = 60;
-    const int number_per_action = 6;
+    const int number_per_action = 10;
     MDP* mdp_pointer = new MDP(planner_pointer, number_per_state, number_per_action);
     mdp_pointer->x_goals = x_goals;
 
     // Construct discrete state
-    mdp_pointer->construct_discrete_state(traj_nominal);
-
-    // Construct transition
-    mdp_pointer->construct_transition();
-    if(!mdp_pointer->is_set_transitions_success){
-        std::cout << "[ERROR] cannot find transition to goal\n";
-        return;
+    std::string nodesQ_file = "outputs/" + planner_pointer->planner_name + "_" 
+                            + ode_pointer->ode_name + "_nodesQ.csv";
+    std::string discrete_state_file = "outputs/" + planner_pointer->planner_name + "_" 
+                        + ode_pointer->ode_name + "_discretestate.csv";
+    std::string discrete_state_info_file = "outputs/" + planner_pointer->planner_name + "_" 
+                            + ode_pointer->ode_name + "_discretestate(info).csv";
+    if(IS_CONSTRUCT){
+        // A. construct discrete state and label goal nodes
+        mdp_pointer->construct_discrete_state(traj_nominal);
+        HELPER::write_vector_to_csv(mdp_pointer->included_discrete_states, nodesQ_file);
+    }
+    else{
+        // B. read discrete state and label goal nodes
+        mdp_pointer->read_discrete_state(nodesQ_file);
     }
 
-    // write discrete state
-    std::vector<Eigen::VectorXd> discrete_traj = mdp_pointer->debug_discrete_state(); //HELPER::log_trajectory(discrete_traj);
-    std::string discrete_traj_file = "outputs/" + planner_pointer->planner_name + "_" 
-                            + ode_pointer->ode_name + "_traj(discrete).csv";
-    HELPER::write_traj_to_csv(discrete_traj, discrete_traj_file);
-    // write transision
-    std::vector<Eigen::VectorXd> data = mdp_pointer->write_transition();
+    // Transition
     std::string transition_file = "outputs/" + planner_pointer->planner_name + "_" 
                             + ode_pointer->ode_name + "_transition.csv";
-    HELPER::write_traj_to_csv(data, transition_file);
+    if(IS_CONSTRUCT){
+        // A. construct transition
+        mdp_pointer->construct_transition();
+        if(!mdp_pointer->is_set_transitions_success){
+            std::cout << "[ERROR] cannot find transition to goal\n";
+            return;
+        }
+        mdp_pointer->write_transition(transition_file);
+    }
+    else{
+        // B. read transition
+        std::cout << "[DEBUG] reading transition.csv\n";
+        mdp_pointer->read_transition(transition_file);
+    }
 
+    ///// Complete MDP Contruction or Reading /////
     // Value iteration
     mdp_pointer->value_iteration();
 
-    // Control Synthesis
-    mdp_pointer->synthesize_control();
+    // Write discrete state and J value at each nodes
+    HELPER::write_traj_to_csv(mdp_pointer->write_discrete_state(), discrete_state_file);
+    HELPER::write_traj_to_csv(mdp_pointer->write_discrete_state_info(), discrete_state_info_file);
 
-    // // Print out discrete state
-    // for(int i=0; i<mdp_pointer->nodes_Q.size(); i++){
-    //     std::cout << mdp_pointer->nodes_Q[i] << " ";
-    // }
-    // std::cout << "\n";
-    // Test feedback control
-    // unsigned int node_Q = mdp_pointer->nodes_Q[0];
-    // Eigen::VectorXd u = mdp_pointer->discrete_state_to_control[node_Q];
-    // std::cout << "[DEBUG] node_Q: " << node_Q << "\n";
-    // HELPER::log_vector(u);
+    // Control Synthesis
+    std::string synthesis_control_file = "outputs/" + planner_pointer->planner_name + "_" 
+                            + ode_pointer->ode_name + "_synthesiscontrol.csv";
+    mdp_pointer->synthesize_control();
+    HELPER::write_traj_to_csv(mdp_pointer->write_synthesis_control(), synthesis_control_file);
 
     // Run-time control
-    int time_elong = 10;
-    bool is_process_noise = false;
+    int time_elong = 20;
+    bool is_process_noise = true;
     bool is_check_unsafe = true;
-    Eigen::VectorXd x = x_start;
+    Eigen::VectorXd x;
     std::vector<Eigen::VectorXd> traj_runtime;
-
-    for(int i=0; i<traj_nominal.size()+time_elong; i++){
-        // std::cout << "[DEBUG] state: "; HELPER::log_vector(x); // real state
-
-        // Compute u_online
-        auto [solved, u_online] = mdp_pointer->get_feedback_control(x);
-        if(!solved){
-            std::cout << "[ERROR] state exceeds MDP construction\n";
-            break;
+    int N_trials = 100;
+    int N_success = 0;
+    // outer loop of k trials
+    for(int k=0; k<N_trials; k++){
+        x = x_start;
+        traj_runtime.clear();
+        // inner loop of time simulation
+        for(int i=0; i<traj_nominal.size()+time_elong; i++){
+            // std::cout << "[DEBUG] state: "; HELPER::log_vector(x); // real state
+            // Compute u_online
+            mdp_pointer->test_synthesis_control(x);
+            auto [solved, u_online] = mdp_pointer->get_feedback_control(x);
+            if(!solved){
+                break;
+            } // std::cout << "control: "; HELPER::log_vector(u_online);
+            std::vector<Eigen::VectorXd> traj_segment;
+            traj_segment = planner_pointer->ode_solver_pointer->solver_runge_kutta(
+                                            x, 
+                                            u_online, 
+                                            planner_pointer->ode_solver_pointer->time_integration, 
+                                            time_control_update, 
+                                            x_goals, 
+                                            is_process_noise,
+                                            is_check_unsafe);
+            // Out-of-domain and Unsafe break
+            if(traj_segment.empty()){
+                std::cout << "[DEBUG] out-of-domain or unsafe break\n";
+                break;
+            }
+            // update
+            x = traj_segment.back();
+            // write to trajectory data (state, control)
+            for(auto& x_k : traj_segment){
+                Eigen::VectorXd x_k_holder = x_k;
+                x_k.conservativeResize(x.size()+u_online.size());
+                x_k << x_k_holder, u_online;
+            }
+            if(!traj_runtime.empty()){
+                traj_runtime.pop_back();
+            }
+            traj_runtime.insert(traj_runtime.end(), traj_segment.begin(), traj_segment.end());
+            // Reach goal break
+            if(ode_pointer->is_goals(x, x_goals)){
+                std::cout << "[DEBUG] reach goal\n";
+                std::cout << "goal state (run): "; HELPER::log_vector(x);
+                mdp_pointer->print_goal_node_index(x);
+                N_success = N_success + 1;
+                break;
+            }
         }
-        // std::cout << "control: "; HELPER::log_vector(u_online);
-
-        //Execute with noise
-        std::vector<Eigen::VectorXd> traj_segment;
-        traj_segment = planner_pointer->ode_solver_pointer->solver_runge_kutta(
-                                        x, 
-                                        u_online, 
-                                        planner_pointer->ode_solver_pointer->time_integration, 
-                                        time_control_update, 
-                                        x_goals, 
-                                        is_process_noise,
-                                        is_check_unsafe);
-        // Out-of-domain and Unsafe break
-        if(traj_segment.empty()){
-            std::cout << "[DEBUG] out-of-domain or unsafe break\n";
-            break;
+        if(!ode_pointer->is_goals(x, x_goals)){
+            std::cout << "[DEBUG] cannot reach goal within nominal + " << time_elong * time_control_update << " time \n";
         }
-        // update
-        x = traj_segment.back();
-        // write to trajectory data (state, control)
-        for(auto& x_k : traj_segment){
-            Eigen::VectorXd x_k_holder = x_k;
-            x_k.conservativeResize(x.size()+u_online.size());
-            x_k << x_k_holder, u_online;
-        }
-        if(!traj_runtime.empty()){
-            traj_runtime.pop_back();
-        }
-        traj_runtime.insert(traj_runtime.end(), traj_segment.begin(), traj_segment.end());
-        // Reach goal break
-        if(ode_pointer->is_goals(x, x_goals)){
-            std::cout << "[DEBUG] reach goal\n";
-            std::cout << "goal state (run): "; HELPER::log_vector(x);
-            break;
-        }
+        std::string traj_runtime_file = "outputs/" + planner_pointer->planner_name + "_" 
+                                + ode_pointer->ode_name + "_noise_traj(mp+lqr).csv";
+        HELPER::write_traj_to_csv(traj_runtime, traj_runtime_file); // HELPER::log_trajectory(traj);
     }
-    if(!ode_pointer->is_goals(x, x_goals)){
-        std::cout << "[DEBUG] cannot reach goal within nominal + " << time_elong * time_control_update << " time \n";
-    }
-
-    std::string traj_runtime_file = "outputs/" + planner_pointer->planner_name + "_" 
-                            + ode_pointer->ode_name + "_noise_traj(mp+lqr).csv";
-    HELPER::write_traj_to_csv(traj_runtime, traj_runtime_file); // HELPER::log_trajectory(traj);
-
+    std::cout << "[DEBUG] success trials: " << N_success << "/" << N_trials << "\n";
 }
 
 

@@ -18,6 +18,5 @@ Eigen::VectorXd OdeVirtual::generateRandomVector(const Eigen::VectorXd& mean, co
     for (int i = 0; i < mean.size(); ++i) {
         random_vector[i] = distributions[i](gen);
     }
-    
     return random_vector;
 }

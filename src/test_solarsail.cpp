@@ -205,7 +205,7 @@ void control_motionplanner_and_lqr(){
 
     // Init
     int time_elong = 100;
-    bool is_process_noise = true;
+    bool is_process_noise = false;
     bool is_check_unsafe = false;
     Eigen::VectorXd x = x_start;
     std::vector<Eigen::VectorXd> traj_runtime;
