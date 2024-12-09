@@ -6,7 +6,19 @@
 
 namespace CONFIG_SOLARSAIL{
 
+    // Create a fixed random seed (e.g., 0) for the generator
+    std::mt19937 fixed_rng(0);  // Seed the random number generator with a fixed value
+    std::uniform_real_distribution<> fixed_dist(0.0, 1.0);  // Uniform distribution between 0 and 1
+
+    // Function to get a random double between min and max using fixed_rng
+    double getRandomDouble(double min, double max) {
+        // Adjust the distribution range
+        std::uniform_real_distribution<> dist(min, max);
+        return dist(fixed_rng);
+    }
+
     std::vector<double> get_parameters(const int env){
+        /* param = C1, C2, C3, g0, unit_time [sec], unit_length [km] */
         std::vector<double> params;
         if(env == 1){
             params = {2.0, 0.0, 0.0, 4.2118e-11, 6.51688e+06, 108.4094};
@@ -48,9 +60,12 @@ namespace CONFIG_SOLARSAIL{
 
     Eigen::MatrixXd get_process_cov(){
         Eigen::MatrixXd cov(3,3);
-        cov << 100.0, 0.0, 0.0,
-                0.0, 100.0, 0.0,
-                0.0, 0.0, 100.0;
+        cov <<  0.05, 0.0, 0.0,
+                0.0, 0.2, 0.0,
+                0.0, 0.0, 0.2;
+        // cov <<  1.0, 0.0, 0.0,
+        //         0.0, 1.0, 0.0,
+        //         0.0, 0.0, 1.0;
         return cov;
     }
 
@@ -75,7 +90,7 @@ namespace CONFIG_SOLARSAIL{
         std::vector<double> radius;
         double rad1;
         for(int i=0; i<n; i++){
-            rad1 = HELPER::getRandomDouble(r_min, r_max);
+            rad1 = getRandomDouble(r_min, r_max);
             radius.push_back(rad1);
         }
         return radius;
@@ -85,20 +100,21 @@ namespace CONFIG_SOLARSAIL{
                                                               const Eigen::VectorXd x_start, const std::vector<Eigen::VectorXd>& x_goals,
                                                               const double unit_length){
         std::vector<Eigen::VectorXd> centers;
+        int buffer = 3;
         Eigen::VectorXd center(3);
         for(int i=0; i<n; i++){
             const double rad = rads[i];
             while(true){
                 bool is_center_appropriate = false;
-                center << HELPER::getRandomDouble(pos_min, pos_max), 
-                          HELPER::getRandomDouble(pos_min, pos_max), 
-                          HELPER::getRandomDouble(pos_min, pos_max);
+                center << getRandomDouble(pos_min, pos_max), 
+                          getRandomDouble(pos_min, pos_max), 
+                          getRandomDouble(pos_min, pos_max);
                 for(const auto& goal : x_goals){
                     // [To Implement] if this occurs, don't run the below if check and contine while loop
                     double distance_to_goal = (center.head(3) - unit_length*(goal.head(3))).norm();
                     double distance_to_start = (center.head(3) - unit_length*(x_start.head(3))).norm();
-                    std::cout << distance_to_goal << "\t" << distance_to_start << "\t" << rad << "\n";
-                    if(distance_to_goal > rad && distance_to_start > rad){
+                    if(distance_to_goal > buffer*rad && distance_to_start > buffer*rad){
+                        std::cout << i << "\t" << distance_to_goal << "\t" << distance_to_start << "\t" << rad << "\n";
                         is_center_appropriate = true;
                         break;
                     }

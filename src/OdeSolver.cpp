@@ -25,11 +25,9 @@ std::vector<Eigen::VectorXd> OdeSolver::solver_runge_kutta(
 
     for(int k=0; k<N; k++){
         if(ode_pointer->is_out_of_domain(x)){
-            x_traj.clear();
             return x_traj;
         }
         if(check_unsafe && ode_pointer->is_in_unsafe(x)){
-            x_traj.clear();
             return x_traj;
         }
         if(ode_pointer->is_goals(x,x_goals)){
@@ -48,8 +46,24 @@ std::vector<Eigen::VectorXd> OdeSolver::solver_runge_kutta(
         w3 = ode_pointer->get_dxdt(t + 0.5*time_integration, x + 0.5*t_integration*w2, u_zero_order_hold, is_process_noise);
         w4 = ode_pointer->get_dxdt(t + 1.0*time_integration, x + 1.0*t_integration*w3, u_zero_order_hold, is_process_noise);
 
-        x = x + t_integration*(w1 + 2*w2 + 2*w3 + w4)/6;
-        x = ode_pointer->state_post_process(x);
+        if(is_process_noise){
+            x = x + t_integration*(w1 + 2*w2 + 2*w3 + w4)/6;
+            Eigen::VectorXd dw = ode_pointer->generateRandomVector(ode_pointer->process_mean, ode_pointer->process_covariance);
+            dw = ode_pointer->process_covariance*dw;
+
+            // std::cout << sqrt(time_integration)*dw[0]/x[3] << "\n";
+            // std::cout << sqrt(time_integration)*dw[1]/x[4] << "\n";
+            // std::cout << sqrt(time_integration)*dw[2]/x[5] << "\n";
+
+            x[3] = x[3] + sqrt(time_integration)*dw[0];
+            x[4] = x[4] + sqrt(time_integration)*dw[1];
+            x[5] = x[5] + sqrt(time_integration)*dw[2];
+        }
+        else{
+            x = x + t_integration*(w1 + 2*w2 + 2*w3 + w4)/6;
+        }
+
+        // x = ode_pointer->state_post_process(x);
         t = t + t_integration;
         x_traj.push_back(x);
     }

@@ -1,4 +1,5 @@
 #include "OdeSolarsail.h"
+#include <unsupported/Eigen/MatrixFunctions> // matrix operation
 
 
 Eigen::VectorXd OdeSolarsail::get_dxdt(const double &t, 
@@ -28,14 +29,6 @@ Eigen::VectorXd OdeSolarsail::get_dxdt(const double &t,
     dxdt[3] =  2*v2 + 3*r1 - r1/pow(r,3) + ax;
     dxdt[4] = -2*v1 - r2/pow(r,3) + ay;
     dxdt[5] = -r3 - r3/pow(r,3) + az;
-
-    if(is_process_noise){
-        // std::cout << "use process noise\n";
-        Eigen::VectorXd process_noise = generateRandomVector(process_mean, process_covariance);
-        for(int i=0; i<process_noise.size(); i++){
-            dxdt[i+3] = dxdt[i+3] + process_noise[i]; // std::cout << process_noise[i] << " ";
-        } // std::cout << "\n";
-    }
 
     return dxdt;
 }
@@ -94,11 +87,38 @@ std::tuple<Eigen::MatrixXd, Eigen::MatrixXd> OdeSolarsail::get_linear_dynamics_m
                                         const Eigen::VectorXd& x, 
                                         const Eigen::VectorXd& u, 
                                         double delta_time){
-    const int size_x = x.size();
-    const int size_u = u.size();
-    Eigen::MatrixXd F(size_x, size_x);
-    Eigen::MatrixXd G(size_x, size_u);
-    return std::make_tuple(F, G);
+    /* return continuous-time Jacobian */
+    double x1 = x[0]; double x2 = x[1]; double x3 = x[2];
+    double x4 = x[3]; double x5 = x[4]; double x6 = x[5];
+    double r = sqrt(x1*x1 + x2*x2 + x3*x3);
+    double u1 = u[0]; double u2 = u[1];
+    
+    Eigen::MatrixXd J_x(6, 6);
+    J_x.setZero();
+    J_x(0,3) = 1.0; J_x(1,4) = 1.0, J_x(2,5) = 1.0;
+    J_x(3,0) = 3*x1*x1/pow(r,5) - 1/pow(r,3) + 3.0;
+    J_x(3,1) = 3*x1*x2/pow(r,5);
+    J_x(3,2) = 3*x1*x3/pow(r,5);
+    J_x(3,4) = 2.0;
+    J_x(4,0) = 3*x1*x2/pow(r,5);
+    J_x(4,1) = 3*x2*x2/pow(r,5) - 1/pow(r,3);
+    J_x(4,2) = 3*x2*x3/pow(r,5);
+    J_x(4,3) = -2.0;
+    J_x(5,0) = 3*x1*x3/pow(r,5);
+    J_x(5,1) = 3*x2*x3/pow(r,5);
+    J_x(5,2) = 3*x3*x3/pow(r,5) - 1/pow(r,3) - 1.0;
+    // Eigen::MatrixXd F = Eigen::MatrixXd::Identity(6, 6) + J_x * delta_time;
+
+    Eigen::MatrixXd J_u(6, 2);
+    J_u.setZero();
+    J_u(3,0) = -(g0*sin(u1)*(C1*cos(u1)*cos(u1) + C2*cos(u1) + C3))/unit_acc - (g0*cos(u1)*(C2*sin(u1) + 2*C1*cos(u1)*sin(u1)))/unit_acc;
+    J_u(4,0) = (g0*sin(u1)*sin(u1)*sin(u2)*(C2 + C1*cos(u1)))/unit_acc - (g0*cos(u1)*cos(u1)*sin(u2)*(C2 + C1*cos(u1)))/unit_acc + (C1*g0*cos(u1)*sin(u1)*sin(u1)*sin(u2))/unit_acc;
+    J_u(4,1) = -(g0*cos(u1)*cos(u2)*sin(u1)*(C2 + C1*cos(u1)))/unit_acc;
+    J_u(5,0) = (g0*cos(u2)*sin(u1)*sin(u1)*(C2 + C1*cos(u1)))/unit_acc - (g0*cos(u1)*cos(u1)*cos(u2)*(C2 + C1*cos(u1)))/unit_acc + (C1*g0*cos(u1)*cos(u2)*sin(u1)*sin(u1))/unit_acc;
+    J_u(5,1) = (g0*cos(u1)*sin(u1)*sin(u2)*(C2 + C1*cos(u1)))/unit_acc;
+    // Eigen::MatrixXd G = (J_u * delta_time);
+
+    return std::make_tuple(J_x, J_u);
 }
 
 
@@ -111,6 +131,7 @@ void OdeSolarsail::set_params(std::vector<double> params){
     unit_length = params[5];
     unit_vel = unit_length/unit_time;
     unit_acc = unit_vel/unit_time;
+    std::cout << "[DEBUG] unit accel (km/s): " << unit_acc << "\n";
 }
 
 

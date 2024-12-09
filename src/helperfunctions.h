@@ -153,8 +153,8 @@ bool solveRiccatiIterationD(const Eigen::MatrixXd &Ad,
     diff = fabs((P_next - P).maxCoeff());
     P = P_next;
     if (diff < tolerance) {
-      std::cout << "iteration mumber = " << i << std::endl;
-      log_matrix(P);
+    //   std::cout << "iteration mumber = " << i << std::endl;
+    //   log_matrix(P);
       return true;
     }
   }
@@ -184,9 +184,9 @@ bool solveRiccatiIterationD2(const Eigen::MatrixXd &Ad,
 
     diff = (H_new - H).norm() / H_new.norm();
     if (diff < tolerance) {
-      std::cout << "iteration mumber = " << i << std::endl;
+    //   std::cout << "iteration mumber = " << i << std::endl;
       P = H_new;
-      log_matrix(P);
+    //   log_matrix(P);
       return true;
     }
     A = A_new; G = G_new; H = H_new;

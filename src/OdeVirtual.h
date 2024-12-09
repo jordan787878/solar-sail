@@ -6,6 +6,7 @@
 #include <vector>
 #include <map>
 #include <tuple>
+#include <random>
 
 class OdeVirtual{
 	public:
@@ -16,8 +17,10 @@ class OdeVirtual{
     	Eigen::VectorXd u_max;
 		Eigen::VectorXd process_mean;
 		Eigen::MatrixXd process_covariance;
+		std::mt19937 gen;
+		std::normal_distribution<double> dist;
 
-		OdeVirtual(std::string name){ode_name = name;}
+		OdeVirtual(std::string name):ode_name(name), gen(0), dist(0.0, 1.0){} // 0: fixed random seed
 		virtual Eigen::VectorXd get_dxdt(const double &t, 
 										 const Eigen::VectorXd &x, 
 										 const Eigen::VectorXd &u, 
@@ -32,7 +35,6 @@ class OdeVirtual{
 													const Eigen::VectorXd& u, 
 													double delta_time) = 0;
 
-	protected:
 		Eigen::VectorXd generateRandomVector(const Eigen::VectorXd& mean, const Eigen::MatrixXd& covariance);
 };
 	// 	void set_W_intenstiy(const double W);
