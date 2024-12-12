@@ -71,7 +71,7 @@ void write_traj_to_csv(const std::vector<Eigen::VectorXd>& data, const std::stri
         outputFile << std::endl;
     }
     outputFile.close();
-    std::cout << "Save file to: " << filename << "\n";
+    // std::cout << "Save file to: " << filename << "\n";
 }
 
 

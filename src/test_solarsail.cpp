@@ -35,7 +35,7 @@ std::tuple<OdeVirtual* , PlannerVirtual*, Eigen::VectorXd, std::vector<Eigen::Ve
     x_goals.push_back(x_goal);
 
     // Define unsafe
-    std::cout << "setting unsafe...\n";
+    // std::cout << "setting unsafe...\n";
     // // Generate and write unsafe 
     const int unsafe_regions = 3;
     std::vector<double> unsafe_circle_radius = CONFIG_SOLARSAIL::get_random_unsafe_raidus_km(unsafe_regions, 0.1, 0.5);
@@ -46,7 +46,7 @@ std::tuple<OdeVirtual* , PlannerVirtual*, Eigen::VectorXd, std::vector<Eigen::Ve
         x_goals,
         ode_pointer->unit_length);
     ode_pointer->set_unsafecircles(unsafe_regions, unsafe_circle_center, unsafe_circle_radius);
-    std::cout << "complete unsafe setting\n";
+    // std::cout << "complete unsafe setting\n";
     std::string unsafe_file = "outputs/env" + std::to_string(env) + "_unsafe.csv";
     HELPER::write_traj_to_csv(ode_pointer->output_unsafecircles(), unsafe_file);
 
@@ -177,7 +177,7 @@ const Eigen::MatrixXd& Q, const Eigen::MatrixXd& R, int max_iters = 10000, doubl
 }
 
 
-void control_motionplanner_and_lqr(std::string RUNTIME_CONTROL){
+void control_motionplanner_and_lqr(std::string RUNTIME_CONTROL, double& success_flag, double& time_of_flight, double& radius_final){
     const int size_x = 6;
     const int size_u = 3; // (control inputs, time_duration)
 
@@ -197,8 +197,8 @@ void control_motionplanner_and_lqr(std::string RUNTIME_CONTROL){
     // Read reference trajectory
     std::string traj_file = "outputs/env"+std::to_string(env)+"_trajplan.csv";
     std::vector<Eigen::VectorXd> traj = HELPER::read_csv_data(traj_file);
-    std::cout << "final state (nominal): ";
-    HELPER::log_vector(traj.back());
+    // std::cout << "final state (nominal): ";
+    // HELPER::log_vector(traj.back());
 
     // Define controller update frequency
     double time_control_update = 0.001;
@@ -213,8 +213,8 @@ void control_motionplanner_and_lqr(std::string RUNTIME_CONTROL){
     for(int i=0; i<size_u-1; i++){
         R(i,i) = 1.0;
     }
-    // K matrix history for Time-varying LQR
-    std::vector<Eigen::MatrixXd> K_history;
+    // Final state weights
+    Eigen::MatrixXd Qf = 0.0 * Eigen::MatrixXd::Identity(6, 6);
 
     // Compute nominal control trajecotory (time_control_update, time_integration)
     int number_data_per_control_update = int(time_control_update/planner_pointer->ode_solver_pointer->time_integration);
@@ -222,6 +222,7 @@ void control_motionplanner_and_lqr(std::string RUNTIME_CONTROL){
     for(int i=0; i<traj.size(); i+=number_data_per_control_update){
         traj_nominal.push_back(traj[i]);
     }
+    traj_nominal.push_back(traj.back()); // append the landing state
 
     // Init
     int nominal_sim_step = traj_nominal.size();
@@ -270,18 +271,25 @@ void control_motionplanner_and_lqr(std::string RUNTIME_CONTROL){
         else{
             min_index = i;
         }
-        std::cout << sim_step << ": min index and dist " << min_index << "\n";
+        // std::cout << sim_step << ", sol index: " << min_index << "\n";
         Eigen::VectorXd x_ref = traj_nominal[min_index].segment(0, size_x);
         Eigen::VectorXd u_ref = traj_nominal[min_index].segment(size_x, size_u-1);
         Eigen::VectorXd u_online = u_ref;
         Eigen::VectorXd state_error = x - x_ref;
         traj_ref.push_back(x_ref);
-        std::cout << "[Debug] norm(Error): " << state_error.norm() << "\n";
+        // std::cout << "[Debug] norm(Error): " << state_error.norm() << "\n";
         
         /* (I) Time-invariant LQR (discrete time, infinite horizon) */
         // auto [A, B] = ode_pointer->get_linear_dynamics_matrices(x_ref, u_ref, time_control_update);
-        // Eigen::MatrixXd F = (A * time_control_update).exp();
-        // Eigen::MatrixXd G = B * time_control_update;
+        // Eigen::MatrixXd A_tilde(8, 8);
+        // A_tilde.block(0, 0, 6, 6) = A;         
+        // A_tilde.block(0, 6, 6, 2) = B;        
+        // A_tilde.block(6, 0, 2, 6) = Eigen::MatrixXd::Zero(2, 6); 
+        // A_tilde.block(6, 6, 2, 2) = Eigen::MatrixXd::Zero(2, 2);
+        // Eigen::MatrixXd A_tilde_exp = (A_tilde*time_control_update).exp();
+        // Eigen::MatrixXd F = A_tilde_exp.block(0, 0, 6, 6);
+        // Eigen::MatrixXd G = A_tilde_exp.block(0, 6, 6, 2);
+        // Eigen::MatrixXd I_check = A_tilde_exp.block(6, 6, 2, 2); // HELPER::log_matrix(I_check);
         // // HELPER::log_matrix(F); HELPER::log_matrix(G);
         // if (F.array().isNaN().any()){
         //     std::cout << "[Error] nan in F matrix, u offline:\n"; 
@@ -302,98 +310,135 @@ void control_motionplanner_and_lqr(std::string RUNTIME_CONTROL){
         //     }
         // }
 
-        /* (II) Time-varying LQR. It fails because K(t) explodes to -Inf after few time steps */
-        // if(i == 0){
-        //     Eigen::MatrixXd K = 1000.0 * Eigen::MatrixXd::Identity(6, 6);
-        //     // // Integrate K backward in time
-        //     for(int j=traj_nominal.size()-1; j>=0; j--){
-        //         Eigen::VectorXd x_u_tau = traj_nominal[j];
-        //         Eigen::VectorXd x_ref_tau = x_u_tau.segment(0,size_x);        
-        //         Eigen::VectorXd u_ref_tau = x_u_tau.segment(size_x,size_u-1); 
-        //         auto [A_tau, B_tau] = ode_pointer->get_linear_dynamics_matrices(x_ref_tau, u_ref_tau, time_control_update);
-        //         Eigen::MatrixXd K_dot = -K*A_tau + K*B_tau*R.inverse()*B_tau.transpose()*K - Q - A_tau.transpose()*K;
-        //         // std::cout << A_tau << "\n";
-        //         // std::cout << B_tau << "\n";
-        //         // std::cout << K_dot << "\n\n";
-        //         Eigen::MatrixXd K_new = K - K_dot * time_control_update;
-        //         K_history.insert(K_history.begin(), K_new);
-        //         K = K_new;
-        //     }
-        //     std::cout << K_history.size() << "\t" << traj_nominal.size() << "\n";
+        /* (II) discrete-time Time-varying LQR */
+        Eigen::MatrixXd Pt = Qf;
+        Eigen::MatrixXd F;
+        Eigen::MatrixXd G;
+        Eigen::MatrixXd eye_six = Eigen::MatrixXd::Identity(6,6);
+        for(int j=traj_nominal.size()-1; j>(i); j--){
+            Eigen::VectorXd x_u_j = traj_nominal[j];
+            Eigen::VectorXd x_tau = x_u_j.segment(0,size_x);    
+            Eigen::VectorXd u_tau = x_u_j.segment(size_x,size_u-1); 
+            auto [A_tau, B_tau] = ode_pointer->get_linear_dynamics_matrices(x_tau, u_tau, time_control_update); 
+            Eigen::MatrixXd A_tilde(8, 8);
+            A_tilde.block(0, 0, 6, 6) = A_tau;         
+            A_tilde.block(0, 6, 6, 2) = B_tau;        
+            A_tilde.block(6, 0, 2, 6) = Eigen::MatrixXd::Zero(2, 6); 
+            A_tilde.block(6, 6, 2, 2) = Eigen::MatrixXd::Zero(2, 2);
+            Eigen::MatrixXd A_tilde_exp = (A_tilde*time_control_update).exp();
+            F = A_tilde_exp.block(0, 0, 6, 6);
+            G = A_tilde_exp.block(0, 6, 6, 2);
+            // (basic form)
+            Eigen::MatrixXd P_new = Q + F.transpose()*Pt*F - F.transpose()*Pt*G*(R+G.transpose()*Pt*G).inverse()*G.transpose()*Pt*F;
+            // (symmetric form)
+            // Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> solver(Pt);
+            // Eigen::MatrixXd Pt_sqrt = solver.eigenvectors() * solver.eigenvalues().cwiseSqrt().asDiagonal() * solver.eigenvectors().transpose();
+            // Eigen::MatrixXd P_new = Q + F.transpose()*Pt_sqrt*(eye_six + Pt_sqrt*G*R.inverse()*G.transpose()*Pt_sqrt).inverse()*Pt_sqrt*F;
+            Pt = P_new;
+        }
+        // HELPER::log_matrix(Pt);
+        auto [A, B] = ode_pointer->get_linear_dynamics_matrices(x_ref, u_ref, time_control_update); 
+        Eigen::MatrixXd A_tilde(8, 8);
+        A_tilde.block(0, 0, 6, 6) = A;         
+        A_tilde.block(0, 6, 6, 2) = B;        
+        A_tilde.block(6, 0, 2, 6) = Eigen::MatrixXd::Zero(2, 6); 
+        A_tilde.block(6, 6, 2, 2) = Eigen::MatrixXd::Zero(2, 2);
+        Eigen::MatrixXd A_tilde_exp = (A_tilde*time_control_update).exp();
+        F = A_tilde_exp.block(0, 0, 6, 6);
+        G = A_tilde_exp.block(0, 6, 6, 2);
+        Eigen::MatrixXd Kt = (R+G.transpose()*Pt*G).inverse()*G.transpose()*Pt*F;
+        // HELPER::log_matrix(Kt);
+        Eigen::VectorXd delta_u = -Kt*(state_error);
+        u_online = u_online + delta_u; 
+        // std::cout << "[Time-varying LQR Solved] u offline & online:\n"; 
+        // HELPER::log_vector(u_ref);
+        // HELPER::log_vector(u_online);
+
+        /* NOTE: continuous-time formulation fails because P explodes while integrating backward */
+        // Eigen::MatrixXd P = Qf;
+        // for(int j=traj_nominal.size()-1; j>(i); j--){
+        //     Eigen::VectorXd x_u_j = traj_nominal[j];
+        //     Eigen::VectorXd x_tau = x_u_j.segment(0,size_x);    
+        //     Eigen::VectorXd u_tau = x_u_j.segment(size_x,size_u-1); 
+        //     auto [A, B] = ode_pointer->get_linear_dynamics_matrices(x_tau, u_tau, time_control_update); 
+        //     Eigen::MatrixXd dPdt = -P*A - A.transpose()*P - Q + P*B*R.inverse()*B.transpose()*P;
+        //     Eigen::MatrixXd P_new = P - dPdt * time_control_update;
+        //     P = P_new;
         // }
-        // if(i < K_history.size()){
-        //     auto[A, B] = ode_pointer->get_linear_dynamics_matrices(x_ref, u_ref, time_control_update);
-        //     Eigen::MatrixXd K = K_history[i];
-        //     Eigen::VectorXd state_error = x - x_ref;              
-        //     Eigen::VectorXd delta_u = -R.inverse()*B.transpose()*K*(state_error);
+        // HELPER::log_matrix(P);
+
+        /* (III) Optimal Neighboring */
+        // std::vector<Eigen::MatrixXd> Phi_history;
+        // Eigen::MatrixXd Phi = Eigen::MatrixXd::Identity(12, 12);
+        // int t_final_index = std::min(min_index+9999, static_cast<int>(traj_nominal.size()) );
+        // for(int j=min_index; j<t_final_index; j++){
+        //     // std::cout << j << "\n";
+        //     Eigen::VectorXd x_u_j = traj_nominal[j];
+        //     Eigen::VectorXd x_tau = x_u_j.segment(0,size_x);        
+        //     Eigen::VectorXd u_tau = x_u_j.segment(size_x,size_u-1); 
+        //     auto [A_tau, B_tau] = ode_pointer->get_linear_dynamics_matrices(x_tau, u_tau, time_control_update);
+        //     // Create the block matrix
+        //     Eigen::MatrixXd A_tilde(12, 12);
+        //     A_tilde.block(0, 0, 6, 6) = A_tau;           // Top-left block: A
+        //     A_tilde.block(0, 6, 6, 6) = -0.5*B_tau*B_tau.transpose();        // Top-right block: A * A^T
+        //     A_tilde.block(6, 0, 6, 6) = Eigen::MatrixXd::Zero(6, 6); // Bottom-left block: 0
+        //     A_tilde.block(6, 6, 6, 6) = -A_tau.transpose();  // Bottom-right block: -A^T
+        //     // Eigen::MatrixXd Phi_dt = A_tilde*Phi;
+        //     Eigen::MatrixXd Phi_new = (A_tilde*time_control_update).exp() * Phi;
+        //     Phi = Phi_new;
+        // }
+        // Eigen::MatrixXd phi_11 = Phi.block(0, 0, 6, 6);
+        // Eigen::MatrixXd phi_12 = Phi.block(0, 6, 6, 6);
+        // Eigen::VectorXd lambda_0 = phi_12.inverse()*(-phi_11 * state_error);
+        // if (lambda_0.array().isNaN().any()){
+        //     std::cout << "u offline:\n"; 
+        //     HELPER::log_vector(u_ref);
+        // }
+        // else{
+        //     auto [A, B] = ode_pointer->get_linear_dynamics_matrices(x_ref, u_ref, time_control_update);
+        //     Eigen::VectorXd delta_u = -0.5*B.transpose()*lambda_0;
         //     u_online = u_online + delta_u; 
-        //     std::cout << "[TV LQR Solved] u offline & online:\n"; 
+        //     std::cout << "[Optimal Neighbor Solved] u offline & online:\n"; 
         //     HELPER::log_vector(u_ref);
         //     HELPER::log_vector(u_online);
         // }
-        // else{
-        //     std::cout << i << " " << K_history.size() << "\n";
-        // }
-
-        /* (III) Optimal Neighboring */
-        std::vector<Eigen::MatrixXd> Phi_history;
-        Eigen::MatrixXd Phi = Eigen::MatrixXd::Identity(12, 12);
-        int t_final_index = std::min(min_index+9999, static_cast<int>(traj_nominal.size()) );
-        for(int j=min_index; j<t_final_index; j++){
-            // std::cout << j << "\n";
-            Eigen::VectorXd x_u_j = traj_nominal[j];
-            Eigen::VectorXd x_tau = x_u_j.segment(0,size_x);        
-            Eigen::VectorXd u_tau = x_u_j.segment(size_x,size_u-1); 
-            auto [A_tau, B_tau] = ode_pointer->get_linear_dynamics_matrices(x_tau, u_tau, time_control_update);
-            // Create the block matrix
-            Eigen::MatrixXd A_tilde(12, 12);
-            A_tilde.block(0, 0, 6, 6) = A_tau;           // Top-left block: A
-            A_tilde.block(0, 6, 6, 6) = -0.5*B_tau*B_tau.transpose();        // Top-right block: A * A^T
-            A_tilde.block(6, 0, 6, 6) = Eigen::MatrixXd::Zero(6, 6); // Bottom-left block: 0
-            A_tilde.block(6, 6, 6, 6) = -A_tau.transpose();  // Bottom-right block: -A^T
-            // Eigen::MatrixXd Phi_dt = A_tilde*Phi;
-            Eigen::MatrixXd Phi_new = (A_tilde*time_control_update).exp() * Phi;
-            Phi = Phi_new;
-        }
-        Eigen::MatrixXd phi_11 = Phi.block(0, 0, 6, 6);
-        Eigen::MatrixXd phi_12 = Phi.block(0, 6, 6, 6);
-        Eigen::VectorXd lambda_0 = phi_12.inverse()*(-phi_11 * state_error);
-        if (lambda_0.array().isNaN().any()){
-            std::cout << "u offline:\n"; 
-            HELPER::log_vector(u_ref);
-        }
-        else{
-            auto [A, B] = ode_pointer->get_linear_dynamics_matrices(x_ref, u_ref, time_control_update);
-            Eigen::VectorXd delta_u = -0.5*B.transpose()*lambda_0;
-            u_online = u_online + delta_u; 
-            std::cout << "[Optimal Neighbor Solved] u offline & online:\n"; 
-            HELPER::log_vector(u_ref);
-            HELPER::log_vector(u_online);
-        }
 
         /* IV. Replan */
-        if(state_error.norm() > 0.3){
-            std::vector<Eigen::VectorXd> sol = planner_pointer->plan(x, x_goals);
-            double cost = planner_pointer->get_cost();
-            planner_pointer->set_cost_threshold(cost);
-            sol = planner_pointer->plan(x, x_goals);
-            // update nominal trajectory
-            traj_nominal.clear();
-            std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol, x_goals);
-            for(int i=0; i<traj.size(); i+=number_data_per_control_update){
-                traj_nominal.push_back(traj[i]);
-            }
-            i = 0;
-            state_error = state_error * 0.0;
-            u_online[0] = sol[0][6];
-            u_online[1] = sol[0][7];
-            std::cout << "[Replan] u: \n";
-            HELPER::log_vector(u_online);
-        }
+        // if(state_error.norm() > 0.1){
+        //     double cost;
+        //     // Initial plan
+        //     planner_pointer->set_plan_time_max(60);
+        //     std::vector<Eigen::VectorXd> sol = planner_pointer->plan(x, x_goals);
+        //     if(planner_pointer->is_success){
+        //         // std::cout << "[Replan] first u: " << sol[0][6] << " " << sol[0][7] << "\n";
+        //         // Optimize plan
+        //         cost = planner_pointer->get_cost();
+        //         planner_pointer->set_cost_threshold(cost);
+        //         std::vector<Eigen::VectorXd> sol_AO = planner_pointer->plan(x, x_goals);
+        //         if(planner_pointer->is_success){
+        //             // std::cout << "[DEBUG] AO Success\n";
+        //             sol.clear();
+        //             sol = sol_AO;
+        //         }
+        //         // Update nominal trajectory
+        //         traj_nominal.clear();
+        //         std::vector<Eigen::VectorXd> traj = planner_pointer->construct_trajectory(sol, x_goals);
+        //         for(int i=0; i<traj.size(); i+=number_data_per_control_update){
+        //             traj_nominal.push_back(traj[i]);
+        //         }
+        //         traj_nominal.push_back(traj.back()); // append the landing state
+        //         i = 0;
+        //         state_error = state_error * 0.0;
+        //         u_online[0] = sol[0][6];
+        //         u_online[1] = sol[0][7];
+        //         // std::cout << "[Replan] u: \n";
+        //         // HELPER::log_vector(u_online);
+        //     }
+        // }
 
-
-        std::cout << "norm state error: " << state_error.norm() << "\n";
-        std::cout << "===\n";
+        // True simulation
+        // std::cout << "norm state error: " << state_error.norm() << "\n";
+        // std::cout << "===\n";
         //Execute with noise
         std::vector<Eigen::VectorXd> traj_segment;
         traj_segment = planner_pointer->ode_solver_pointer->solver_runge_kutta(
@@ -411,14 +456,26 @@ void control_motionplanner_and_lqr(std::string RUNTIME_CONTROL){
 
         if(ode_pointer->is_out_of_domain(x)){
             std::cout << "[Fail] out-of-bound\n";
+            time_of_flight = sim_step;
+            radius_final = pow(x[0]*x[0] + x[1]*x[1] + x[2]*x[2],2);
             break;
         }
         if(is_check_unsafe && ode_pointer->is_in_unsafe(x)){
             std::cout << "[Fail] un-safe\n";
+            time_of_flight = sim_step;
+            radius_final = pow(x[0]*x[0] + x[1]*x[1] + x[2]*x[2],2);
             break;
         }
-        if(state_error.norm() > 2.0){
-            std::cout << "[Debug] norm(Error) > 2.0 \n";
+        // if(state_error.norm() > 1.0){
+        //     std::cout << "[Break] norm(Error) > 1.0 \n";
+        //     time_of_flight = sim_step;
+        //     radius_final = pow(x[0]*x[0] + x[1]*x[1] + x[2]*x[2],2);
+        //     break;
+        // }
+        if(sim_step > 1000){
+            std::cout << "[Break] tf > 1000 steps \n";
+            time_of_flight = sim_step;
+            radius_final = pow(x[0]*x[0] + x[1]*x[1] + x[2]*x[2],2);
             break;
         }
         // write
@@ -437,21 +494,52 @@ void control_motionplanner_and_lqr(std::string RUNTIME_CONTROL){
         traj_runtime.insert(traj_runtime.end(), traj_segment.begin(), traj_segment.end());
         // Reach goal break
         if(ode_pointer->is_goals(x, x_goals)){
-            std::cout << "[Success] reach goal\n";
-            std::cout << "final state (run): "; HELPER::log_vector(x);
+            // std::cout << "[Success] reach goal\n";
+            // std::cout << "final state (run): "; HELPER::log_vector(x);
+            time_of_flight = sim_step;
+            radius_final = pow(x[0]*x[0] + x[1]*x[1] + x[2]*x[2],2);
+            success_flag = 1.0;
             break;
         }
     }
     if(!ode_pointer->is_goals(x, x_goals)){
         std::cout << "[Fail] cannot reach goal within nominal + " << time_elong * time_control_update << " time \n";
-        std::cout << "final state (run): ";
-        HELPER::log_vector(x);
+        // std::cout << "final state (run): ";
+        // HELPER::log_vector(x);
     }
-
     std::string traj_runtime_file = "outputs/env"+std::to_string(env)+"_trajrun_"+RUNTIME_CONTROL+".csv";
     HELPER::write_traj_to_csv(traj_runtime, traj_runtime_file);
     std::string traj_ref_file = "outputs/env"+std::to_string(env)+"_trajref_"+RUNTIME_CONTROL+".csv";
     HELPER::write_traj_to_csv(traj_ref, traj_ref_file);
+}
+
+
+void test_navigation(){
+    // std::string runtime_control = "nofeedback";
+    // std::string runtime_control = "lqr";
+    // std::string runtime_control = "tvlqr";
+    // std::string runtime_control = "optneighbor";
+    // std::string runtime_control = "optneighbor+replan";
+    // std::string runtime_control = "tvlqr+replan";
+    // std::string runtime_control = "tvlqr_largenoise";
+    // std::string runtime_control = "tvlqr+replan_largenoise";
+    std::string runtime_control = "test";
+
+    int N_trials = 1;
+    std::vector<Eigen::VectorXd> results;
+
+    for(int i=0; i<N_trials; i++){
+        double SF = 0.0; double TOF = 0.0; double RF = 0.0;
+        control_motionplanner_and_lqr(runtime_control, SF, TOF, RF);
+        std::cout << i << ", Success? " << SF << ", (norm) time of flight: " << TOF << ", (norm) final radius: " << RF << "\n";
+        Eigen::VectorXd row(3);
+        row[0] = SF; row[1] = TOF; row[2] = RF;
+        results.push_back(row);
+    }
+    if(N_trials > 1){
+        std::string monte_results_file = "outputs/monte_results.csv";
+        HELPER::write_traj_to_csv(results, monte_results_file);
+    }
 }
 
 
@@ -464,12 +552,84 @@ int main(){
 
     // plan_AO();
 
-    // std::string runtime_control = "nofeedback";
-    // std::string runtime_control = "lqr";
-    // std::string runtime_control = "optneighbor";
-    std::string runtime_control = "optneighbor+replan";
-
-    control_motionplanner_and_lqr(runtime_control);
+    test_navigation();
 
     return 0;
 }
+
+/*
+
+[test SetRRT]
+0, Success? 1, (norm) time of flight: 504, (norm) final radius: 4.90626e-10
+1, Success? 1, (norm) time of flight: 498, (norm) final radius: 1.88674e-10
+2, Success? 1, (norm) time of flight: 442, (norm) final radius: 4.97776e-10
+3, Success? 1, (norm) time of flight: 620, (norm) final radius: 5.12344e-10
+4, Success? 1, (norm) time of flight: 474, (norm) final radius: 3.83944e-10
+5, Success? 1, (norm) time of flight: 528, (norm) final radius: 3.88731e-10
+6, Success? 1, (norm) time of flight: 493, (norm) final radius: 3.79202e-10
+7, Success? 1, (norm) time of flight: 477, (norm) final radius: 3.99185e-10
+8, Success? 1, (norm) time of flight: 521, (norm) final radius: 2.3713e-10
+9, Success? 1, (norm) time of flight: 509, (norm) final radius: 5.02721e-10
+10, Success? 1, (norm) time of flight: 626, (norm) final radius: 4.90759e-10
+11, Success? 1, (norm) time of flight: 388, (norm) final radius: 3.37781e-10
+12, Success? 1, (norm) time of flight: 348, (norm) final radius: 4.44825e-10
+13, Success? 1, (norm) time of flight: 656, (norm) final radius: 3.56642e-10
+14, Success? 1, (norm) time of flight: 727, (norm) final radius: 5.09e-10
+15, Success? 1, (norm) time of flight: 618, (norm) final radius: 2.30853e-10
+16, Success? 1, (norm) time of flight: 481, (norm) final radius: 5.14714e-10
+17, Success? 1, (norm) time of flight: 492, (norm) final radius: 2.40318e-10
+18, Success? 1, (norm) time of flight: 595, (norm) final radius: 4.16507e-10
+19, Success? 1, (norm) time of flight: 511, (norm) final radius: 3.24768e-10
+root@ecb9e476b118:/develop# ./build_and_compile.sh
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /develop/build
+[ 12%] Building CXX object CMakeFiles/test_solarsail.dir/src/test_solarsail.cpp.o
+[ 25%] Linking CXX executable bin/test_solarsail
+[100%] Built target test_solarsail
+root@ecb9e476b118:/develop# ./build/bin/test_solarsail
+[test SetRRT]
+0, Success? 1, (norm) time of flight: 438, (norm) final radius: 3.55726e-10
+1, Success? 1, (norm) time of flight: 586, (norm) final radius: 1.8025e-10
+2, Success? 1, (norm) time of flight: 463, (norm) final radius: 3.23695e-10
+3, Success? 1, (norm) time of flight: 476, (norm) final radius: 2.51076e-10
+4, Success? 1, (norm) time of flight: 525, (norm) final radius: 3.71151e-10
+5, Success? 1, (norm) time of flight: 679, (norm) final radius: 5.05925e-10
+6, Success? 1, (norm) time of flight: 567, (norm) final radius: 3.59283e-10
+7, Success? 1, (norm) time of flight: 375, (norm) final radius: 2.14329e-10
+8, Success? 1, (norm) time of flight: 431, (norm) final radius: 4.25018e-10
+9, Success? 1, (norm) time of flight: 474, (norm) final radius: 2.15454e-10
+10, Success? 1, (norm) time of flight: 537, (norm) final radius: 5.13344e-10
+11, Success? 1, (norm) time of flight: 581, (norm) final radius: 2.68117e-10
+12, Success? 1, (norm) time of flight: 567, (norm) final radius: 4.96162e-10
+13, Success? 1, (norm) time of flight: 539, (norm) final radius: 2.77505e-10
+14, Success? 1, (norm) time of flight: 556, (norm) final radius: 4.99964e-10
+15, Success? 1, (norm) time of flight: 452, (norm) final radius: 2.82576e-10
+16, Success? 1, (norm) time of flight: 552, (norm) final radius: 3.72304e-10
+17, Success? 1, (norm) time of flight: 453, (norm) final radius: 3.94004e-10
+18, Success? 1, (norm) time of flight: 497, (norm) final radius: 3.44163e-10
+19, Success? 1, (norm) time of flight: 527, (norm) final radius: 3.37008e-10
+20, Success? 1, (norm) time of flight: 427, (norm) final radius: 4.02424e-10
+21, Success? 1, (norm) time of flight: 596, (norm) final radius: 4.09177e-10
+22, Success? 1, (norm) time of flight: 601, (norm) final radius: 3.7434e-10
+23, Success? 1, (norm) time of flight: 430, (norm) final radius: 4.34113e-10
+24, Success? 1, (norm) time of flight: 501, (norm) final radius: 4.37134e-10
+25, Success? 1, (norm) time of flight: 563, (norm) final radius: 3.0095e-10
+26, Success? 1, (norm) time of flight: 645, (norm) final radius: 3.16759e-10
+27, Success? 1, (norm) time of flight: 460, (norm) final radius: 2.98098e-10
+[Break] norm(Error) > 1.0 
+[Fail] cannot reach goal within nominal + 0 time 
+28, Success? 0, (norm) time of flight: 568, (norm) final radius: 7.01581e-09
+29, Success? 1, (norm) time of flight: 472, (norm) final radius: 3.68087e-10
+30, Success? 1, (norm) time of flight: 378, (norm) final radius: 3.89689e-10
+31, Success? 1, (norm) time of flight: 514, (norm) final radius: 4.04777e-10
+32, Success? 1, (norm) time of flight: 585, (norm) final radius: 3.61525e-10
+33, Success? 1, (norm) time of flight: 533, (norm) final radius: 4.019e-10
+34, Success? 1, (norm) time of flight: 408, (norm) final radius: 2.97086e-10
+35, Success? 1, (norm) time of flight: 418, (norm) final radius: 2.59749e-10
+36, Success? 1, (norm) time of flight: 499, (norm) final radius: 4.94474e-10
+37, Success? 1, (norm) time of flight: 589, (norm) final radius: 4.76933e-10
+38, Success? 1, (norm) time of flight: 507, (norm) final radius: 2.22383e-10
+39, Success? 1, (norm) time of flight: 590, (norm) final radius: 5.05652e-10
+
+*/

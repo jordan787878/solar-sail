@@ -96,27 +96,30 @@ std::tuple<Eigen::MatrixXd, Eigen::MatrixXd> OdeSolarsail::get_linear_dynamics_m
     Eigen::MatrixXd J_x(6, 6);
     J_x.setZero();
     J_x(0,3) = 1.0; J_x(1,4) = 1.0, J_x(2,5) = 1.0;
+
     J_x(3,0) = 3*x1*x1/pow(r,5) - 1/pow(r,3) + 3.0;
     J_x(3,1) = 3*x1*x2/pow(r,5);
     J_x(3,2) = 3*x1*x3/pow(r,5);
     J_x(3,4) = 2.0;
+
     J_x(4,0) = 3*x1*x2/pow(r,5);
-    J_x(4,1) = 3*x2*x2/pow(r,5) - 1/pow(r,3);
+    J_x(4,1) = -(x1*x1 - 2*x2*x2 + x3*x3)/pow(r,5); //3*x2*x2/pow(r,5) - 1/pow(r,3);
     J_x(4,2) = 3*x2*x3/pow(r,5);
     J_x(4,3) = -2.0;
+
     J_x(5,0) = 3*x1*x3/pow(r,5);
     J_x(5,1) = 3*x2*x3/pow(r,5);
     J_x(5,2) = 3*x3*x3/pow(r,5) - 1/pow(r,3) - 1.0;
-    // Eigen::MatrixXd F = Eigen::MatrixXd::Identity(6, 6) + J_x * delta_time;
 
     Eigen::MatrixXd J_u(6, 2);
     J_u.setZero();
-    J_u(3,0) = -(g0*sin(u1)*(C1*cos(u1)*cos(u1) + C2*cos(u1) + C3))/unit_acc - (g0*cos(u1)*(C2*sin(u1) + 2*C1*cos(u1)*sin(u1)))/unit_acc;
-    J_u(4,0) = (g0*sin(u1)*sin(u1)*sin(u2)*(C2 + C1*cos(u1)))/unit_acc - (g0*cos(u1)*cos(u1)*sin(u2)*(C2 + C1*cos(u1)))/unit_acc + (C1*g0*cos(u1)*sin(u1)*sin(u1)*sin(u2))/unit_acc;
-    J_u(4,1) = -(g0*cos(u1)*cos(u2)*sin(u1)*(C2 + C1*cos(u1)))/unit_acc;
-    J_u(5,0) = (g0*cos(u2)*sin(u1)*sin(u1)*(C2 + C1*cos(u1)))/unit_acc - (g0*cos(u1)*cos(u1)*cos(u2)*(C2 + C1*cos(u1)))/unit_acc + (C1*g0*cos(u1)*cos(u2)*sin(u1)*sin(u1))/unit_acc;
-    J_u(5,1) = (g0*cos(u1)*sin(u1)*sin(u2)*(C2 + C1*cos(u1)))/unit_acc;
-    // Eigen::MatrixXd G = (J_u * delta_time);
+    J_u(3,0) = -(g0*sin(u1)*(C3 + 2*C2*cos(u1) + 3*C1*cos(u1)*cos(u1)))/unit_acc; //-(g0*sin(u1)*(C1*cos(u1)*cos(u1) + C2*cos(u1) + C3))/unit_acc - (g0*cos(u1)*(C2*sin(u1) + 2*C1*cos(u1)*sin(u1)))/unit_acc;
+
+    J_u(4,0) = (g0*sin(u2)*(C2 + 2*C1*cos(u1) - 3*C1*pow(cos(u1),3) - 2*C2*cos(u1)*cos(u1)))/unit_acc; //(g0*sin(u1)*sin(u1)*sin(u2)*(C2 + C1*cos(u1)))/unit_acc - (g0*cos(u1)*cos(u1)*sin(u2)*(C2 + C1*cos(u1)))/unit_acc + (C1*g0*cos(u1)*sin(u1)*sin(u1)*sin(u2))/unit_acc;
+    J_u(4,1) = -(g0*cos(u1)*cos(u2)*sin(u1)*(C2 + C1*cos(u1)))/unit_acc; //-(g0*cos(u1)*cos(u2)*sin(u1)*(C2 + C1*cos(u1)))/unit_acc;
+
+    J_u(5,0) = (g0*cos(u2)*(C2 + 2*C1*cos(u1) - 3*C1*pow(cos(u1),3) - 2*C2*cos(u1)*cos(u1)))/unit_acc; // (g0*cos(u2)*sin(u1)*sin(u1)*(C2 + C1*cos(u1)))/unit_acc - (g0*cos(u1)*cos(u1)*cos(u2)*(C2 + C1*cos(u1)))/unit_acc + (C1*g0*cos(u1)*cos(u2)*sin(u1)*sin(u1))/unit_acc;
+    J_u(5,1) = (g0*cos(u1)*sin(u1)*sin(u2)*(C2 + C1*cos(u1)))/unit_acc; // (g0*cos(u1)*sin(u1)*sin(u2)*(C2 + C1*cos(u1)))/unit_acc;
 
     return std::make_tuple(J_x, J_u);
 }
@@ -131,7 +134,7 @@ void OdeSolarsail::set_params(std::vector<double> params){
     unit_length = params[5];
     unit_vel = unit_length/unit_time;
     unit_acc = unit_vel/unit_time;
-    std::cout << "[DEBUG] unit accel (km/s): " << unit_acc << "\n";
+    // std::cout << "[DEBUG] unit accel (km/s): " << unit_acc << "\n";
 }
 
 

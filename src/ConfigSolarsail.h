@@ -60,12 +60,16 @@ namespace CONFIG_SOLARSAIL{
 
     Eigen::MatrixXd get_process_cov(){
         Eigen::MatrixXd cov(3,3);
+
+        // large noise
+        // cov <<  0.5, 0.0, 0.0,
+        //         0.0, 0.5, 0.0,
+        //         0.0, 0.0, 0.5;
+        
+        // nominal noise
         cov <<  0.05, 0.0, 0.0,
                 0.0, 0.2, 0.0,
                 0.0, 0.0, 0.2;
-        // cov <<  1.0, 0.0, 0.0,
-        //         0.0, 1.0, 0.0,
-        //         0.0, 0.0, 1.0;
         return cov;
     }
 
@@ -114,7 +118,7 @@ namespace CONFIG_SOLARSAIL{
                     double distance_to_goal = (center.head(3) - unit_length*(goal.head(3))).norm();
                     double distance_to_start = (center.head(3) - unit_length*(x_start.head(3))).norm();
                     if(distance_to_goal > buffer*rad && distance_to_start > buffer*rad){
-                        std::cout << i << "\t" << distance_to_goal << "\t" << distance_to_start << "\t" << rad << "\n";
+                        // std::cout << i << "\t" << distance_to_goal << "\t" << distance_to_start << "\t" << rad << "\n";
                         is_center_appropriate = true;
                         break;
                     }

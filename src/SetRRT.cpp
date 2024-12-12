@@ -33,7 +33,7 @@ std::vector<Eigen::VectorXd> SetRRT::plan(const Eigen::VectorXd& x_init,
         // break planning
         // 1. success
         if(is_success){
-            std::cout << "[IsGoal:True]\n";
+            // std::cout << "[IsGoal:True]\n";
             solution = construct_solution();
             return solution;
         }
@@ -85,9 +85,9 @@ std::vector<Eigen::VectorXd> SetRRT::construct_trajectory(const std::vector<Eige
             trajectory.insert(trajectory.end(), traj_segment.begin(), traj_segment.end());
         }
         else{
-            std::cout << "goal state (sol): "; print_eigen_vector(solution[solution.size()-1]);
-            std::cout << "goal state (sim): "; print_eigen_vector(x);
-            // double traj_sol_difference = (x - solution[i].head(size_x)).norm();
+            // std::cout << "goal state (sol): "; print_eigen_vector(solution[solution.size()-1]);
+            // std::cout << "goal state (sim): "; print_eigen_vector(x);
+            double traj_sol_difference = (x - solution[i].head(size_x)).norm();
             // std::cout << "difference between trajectory and solution: " << traj_sol_difference << "\n";
         }
     }
@@ -107,7 +107,7 @@ void SetRRT::link_ode_solver_pointer(OdeSolver* pointer){
 
 
 void SetRRT::init_plan(const Eigen::VectorXd& x_init){
-    std::cout << "plan time max: " << plan_time_max << "\n";
+    // std::cout << "plan time max: " << plan_time_max << "\n";
     is_success = false;
     graph.cleanGraph();
     nodes.clear();
@@ -212,7 +212,7 @@ std::vector<Eigen::VectorXd> SetRRT::construct_solution(){
         node_current = node_parent;
     }
 
-    std::cout << "[DEBUG] solution nodes: ";
+    // std::cout << "[DEBUG] solution nodes: ";
 
     std::vector<Eigen::VectorXd> solution;
     for(int k=0; k<solution_nodes.size(); k++){
@@ -229,9 +229,9 @@ std::vector<Eigen::VectorXd> SetRRT::construct_solution(){
         sol.segment(size_x, size_u) = control;
         sol[size_x+size_u] = n;
         solution.push_back(sol);
-        std::cout << n << " ";
+        // std::cout << n << " ";
     }
-    std::cout << "\n";
+    // std::cout << "\n";
 
     return solution;
 }

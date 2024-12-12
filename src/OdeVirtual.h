@@ -20,7 +20,8 @@ class OdeVirtual{
 		std::mt19937 gen;
 		std::normal_distribution<double> dist;
 
-		OdeVirtual(std::string name):ode_name(name), gen(0), dist(0.0, 1.0){} // 0: fixed random seed
+		// OdeVirtual(std::string name):ode_name(name), gen(0), dist(0.0, 1.0){} // 0: fixed random seed
+		OdeVirtual(std::string name):ode_name(name), gen(std::random_device()()), dist(0.0, 1.0){} // random seed for Monte Carlo
 		virtual Eigen::VectorXd get_dxdt(const double &t, 
 										 const Eigen::VectorXd &x, 
 										 const Eigen::VectorXd &u, 

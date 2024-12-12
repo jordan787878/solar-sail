@@ -23,7 +23,7 @@ bool PlannerVirtual::exceed_plan_time_max(std::chrono::time_point<std::chrono::h
     double elapsedSeconds = elapsedTime.count();
     // std::cout << "[DEBUG] plan time: " << elapsedSeconds << "\n";
     if (elapsedSeconds >= plan_time_max) {
-        std::cout << "exceeded max. planning time: " << plan_time_max << " sec.\n";
+        // std::cout << "exceeded max. planning time: " << plan_time_max << " sec.\n";
         return true;
     }
     return false;
